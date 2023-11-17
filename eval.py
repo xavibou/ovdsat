@@ -48,6 +48,7 @@ def evaluate(args, model, dataloader, device):
     nc = len(dataloader.dataset.embedding_classes)
     plots = False
     save_dir = 'test/'
+    names = dataloader.dataset.names
 
     for i, batch in enumerate(dataloader):
         images, boxes, targets, metadata = batch
