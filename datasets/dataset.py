@@ -25,9 +25,9 @@ class DINODataset(Dataset):
 
         data = [{k: v} for k, v in data.items() if len(v)]
         
-        isinfo = [i for i in data[0].items()]
+        '''isinfo = [i for i in data[0].items()]
         if isinfo[0][0] == 'info':
-            data = [data[1], data[3], data[2]]
+            data = [data[1], data[3], data[2]]'''
 
         self.images = data[0]['images']
         self.annotations = data[1]['annotations']

@@ -124,17 +124,22 @@ class OVDClassifier(torch.nn.Module):
             image_boxes = boxes[b][:, :4]
     
             image_similarities = []
+            count = 0
             for i, box in enumerate(image_boxes):
-                #x_min, y_min, w, h = box.int()
-                x_min, y_min, x_max, y_max = box.int()
+                x_min, y_min, w, h = box.int()
+                y_max = y_min + h
+                x_max = x_min + w
+                # TODO: either choose on format or adapt to both!!!!!!!!!!!!!
+                #x_min, y_min, x_max, y_max = box.int()
                 
                 if cls is not None:
                     if (x_min < 0 or
                         y_min < 0 or
                         y_max > self.target_size[0] or
                         x_max > self.target_size[0] or
-                        h < self.min_box_size or
-                        w < self.min_box_size):
+                        y_max - y_min < self.min_box_size or
+                        x_max - x_min < self.min_box_size):
+                        count += 1
                         cls[b][i] = self.ignore_index   # If invalid box, assign the label to ignore it while computing the loss
                 
                 box_sim = cosine_sim[b, :, y_min:y_max -1, x_min:x_max -1].mean(dim=[1, 2])
