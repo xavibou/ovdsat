@@ -2,6 +2,8 @@
 
 TO-DO
 
+* Embedding training and detection use different box formats. Fix it to use always one or to choose the right one
+* Add optional validation set for training
 * Take each DOTA subset and generate prototypes with its images
 * Make sure prototypes are well computed (extract features just like at model level)
 * Evaluate DINO+RPN on each subset and plot the curve

@@ -50,6 +50,7 @@ def xyxy2xywhn(x, w=640, h=640, clip=False, eps=0.0):
     return y
 
 
+
 def non_max_suppression(
         prediction,
         conf_thres=0.25,
@@ -113,8 +114,8 @@ def non_max_suppression(
             continue
 
         # Compute conf
-        if not isdino:
-            x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
+        #if not isdino:
+        x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
 
         # Box/Mask
         if isdino:

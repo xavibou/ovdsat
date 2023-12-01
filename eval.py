@@ -8,6 +8,47 @@ from utils_dir.nms import non_max_suppression
 from datasets.dataset import DINODataset
 from utils_dir.metrics import ConfusionMatrix, ap_per_class, box_iou
 
+import os
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import cv2
+
+def plot_image_with_boxes(image_path, detections, label_names, filepath, target_size):
+    # Load the image using OpenCV
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.resize(image, target_size)
+
+    # Create figure and axes
+    fig, ax = plt.subplots(1)
+    ax.imshow(image)
+
+    # Plot bounding boxes
+    for detection in detections:
+        xmin, ymin, xmax, ymax, conf, class_id = detection
+
+        # Get label name based on class_id
+        label_name = label_names[int(class_id)]
+
+        # Calculate box width and height
+        width = xmax - xmin
+        height = ymax - ymin
+
+        # Create a Rectangle patch
+        rect = patches.Rectangle((xmin, ymin), width, height, linewidth=1, edgecolor='r', facecolor='none')
+
+        # Add the patch to the Axes
+        ax.add_patch(rect)
+
+        # Add label name above the bounding box
+        ax.text(xmin, ymin - 5, f'{label_name}: {conf:.2f}', color='red', fontsize=8, ha='left', va='bottom')
+
+    # Save the plot to the specified directory
+    save_path = f"{filepath}"
+    plt.savefig(save_path)
+    plt.close()
+
+
 def process_batch(detections, labels, iouv):
     """
     Return correct prediction matrix
@@ -33,6 +74,7 @@ def process_batch(detections, labels, iouv):
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 def custom_xywh2xyxy(x):
+    # TODO: put it in utils as we use it in train too!!!
     # Convert nx4 boxes from [xmin, ymin, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
     y[..., 2] = x[..., 0] + x[..., 2]  # bottom right x
@@ -49,13 +91,13 @@ def evaluate(args, model, dataloader, device):
     plots = False
     save_dir = 'test/'
     names = dataloader.dataset.names
+    count = 0
 
     for i, batch in enumerate(dataloader):
         images, boxes, targets, metadata = batch
 
         if i % 100 == 0:
             print('Evaluating batch {}/{}'.format(i+1, len(dataloader)))
-
 
         images = images.float().to(device)
         boxes = boxes.to(device)
@@ -72,6 +114,13 @@ def evaluate(args, model, dataloader, device):
                                         args.iou_thr,
                                         multi_label=True,
                                         isdino=False)
+        
+        # Save images
+        if args.save_dir is not None and args.save_images:
+            filepath = os.path.join(args.save_dir, '{}.png'.format(count))
+            plot_image_with_boxes(metadata['impath'][0], preds[0].cpu(), dataloader.dataset.embedding_classes, filepath, args.target_size)
+            count += 1
+
         
         # Metrics
         for si, pred in enumerate(preds):
@@ -157,6 +206,7 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--root_dir', type=str)
+    parser.add_argument('--save_dir', type=str, default=None)
     parser.add_argument('--annotations_file', type=str)
     parser.add_argument('--model_type', type=str, default='DINOv2RPN')
     parser.add_argument('--ckpt', type=str, default=None)
@@ -168,6 +218,7 @@ if __name__ == '__main__':
     parser.add_argument('--iou_thr', type=float, default=0.1)
     parser.add_argument('--conf_thres', type=float, default=0.2)
     parser.add_argument('--scale_factor', nargs='+', type=int, default=2)
+    parser.add_argument('--save_images', action='store_true', default=False)
     args = parser.parse_args()
 
     main(args)

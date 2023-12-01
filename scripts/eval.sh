@@ -8,5 +8,5 @@ python eval.py \
     --batch_size 1 \
     --num_workers 8 \
     --iou_thr 0.1 \
-    --conf_thres 0.2 \
+    --conf_thres 0.1 \
     --scale_factor 1 2\

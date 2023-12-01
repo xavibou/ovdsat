@@ -1,6 +1,6 @@
 import torch
 
-def filter_boxes(boxes, classes, scores, target_size, num_labels, box_conf_threshold=0.25):
+def filter_boxes(boxes, classes, scores, target_size, num_labels, box_conf_threshold=0):
     target_height, target_width = target_size
     keep = ((boxes[:, 0] >= 0) & (boxes[:, 1] >= 0) &
             (boxes[:, 2] <= target_width) & (boxes[:, 3] <= target_height))

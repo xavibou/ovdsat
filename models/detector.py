@@ -8,6 +8,8 @@ from utils_dir.rpn_utils import get_RPN
 from utils_dir.processing_utils import filter_boxes
 from utils_dir.nms import non_max_suppression
 
+def sigmoid(x):
+    return 1 / (1 + torch.exp(-x))
 
 class OVDDetector(torch.nn.Module):
 
@@ -19,8 +21,8 @@ class OVDDetector(torch.nn.Module):
                 scale_factor=2,
                 min_box_size=5,
                 ignore_index=-1,
-                rpn_config='configs/CenterNet2_R50_1x.yaml',
-                rpn_checkpoint='/mnt/ddisk/boux/code/dino_simple_detector/CenterNet2/models/CenterNet2_R50_1x.pth'
+                rpn_config='/mnt/ddisk/boux/code/DroneDetectron2/configs/Dota-Base-RCNN-FPN.yaml',
+                rpn_checkpoint='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/model_final.pth'
                 ):
         super().__init__()
         self.scale_factor = scale_factor
@@ -41,18 +43,21 @@ class OVDDetector(torch.nn.Module):
         self.mean = torch.tensor([0.485, 0.456, 0.406]).to(self.rpn_cfg.MODEL.DEVICE)
         self.std = torch.tensor([0.229, 0.224, 0.225]).to(self.rpn_cfg.MODEL.DEVICE)
 
+
     def generate_proposals(self, images):
-        images = [(x - self.rpn.model.pixel_mean) / self.rpn.model.pixel_std for x in images]
+        images = [(x - self.rpn.pixel_mean) / self.rpn.pixel_std for x in images]
         images = ImageList.from_tensors(
             images,
-            self.rpn.model.backbone.size_divisibility,
-            padding_constraints=self.rpn.model.backbone.padding_constraints,
+            self.rpn.backbone.size_divisibility,
+            padding_constraints=self.rpn.backbone.padding_constraints,
         )
-        features = self.rpn.model.backbone(images.tensor)
-        proposals, _ = self.rpn.model.proposal_generator(images, features, None)
+        features = self.rpn.backbone(images.tensor)
+        proposals, _ = self.rpn.proposal_generator(images, features, None)
         
         boxes = torch.stack([p.proposal_boxes.tensor for p in proposals])
-        box_scores = torch.stack([p.scores for p in proposals])
+        #box_scores = torch.stack([sigmoid(p.objectness_logits) for p in proposals])
+        box_scores = torch.stack([p.objectness_logits / 10 for p in proposals])
+
         return boxes, box_scores
     
 
@@ -64,7 +69,7 @@ class OVDDetector(torch.nn.Module):
         normalized_tensor = (input_tensor - self.mean[:, None, None]) / self.std[:, None, None]
         return normalized_tensor
     
-    def forward(self, images, iou_thr=0.1, conf_thres=0.1, box_conf_threshold=0.1):
+    def forward(self, images, iou_thr=0.2, conf_thres=0.001, box_conf_threshold=0.01):
 
         # Generate box proposals
         proposals, box_scores = self.generate_proposals(images)
@@ -102,17 +107,3 @@ class OVDDetector(torch.nn.Module):
         del preds, scores, classes, proposals, box_scores
         
         return processed_predictions
-
-
-def reorder_boxes_by_score(boxes_tensor):
-    # Assuming boxes_tensor is of shape [N, K]
-    # Extract box scores (fifth element in the second dimension)
-    box_scores = boxes_tensor[:, 4]
-
-    # Sort indices of the boxes based on box scores in descending order
-    sorted_indices = torch.argsort(box_scores, descending=True)
-
-    # Reorder the boxes tensor using the sorted indices
-    sorted_boxes = boxes_tensor[sorted_indices]
-
-    return sorted_boxes

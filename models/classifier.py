@@ -126,11 +126,7 @@ class OVDClassifier(torch.nn.Module):
             image_similarities = []
             count = 0
             for i, box in enumerate(image_boxes):
-                x_min, y_min, w, h = box.int()
-                y_max = y_min + h
-                x_max = x_min + w
-                # TODO: either choose on format or adapt to both!!!!!!!!!!!!!
-                #x_min, y_min, x_max, y_max = box.int()
+                x_min, y_min, x_max, y_max = box.int()
                 
                 if cls is not None:
                     if (x_min < 0 or
@@ -153,6 +149,6 @@ class OVDClassifier(torch.nn.Module):
         if return_cosim:
             return box_similarities.view(-1, self.num_classes), cosine_sim
 
-        # Flatten box_logits and target_labels for CrossEntropyLoss
+        # Flatten box_logits and target_labels
         return box_similarities.view(-1, self.num_classes)
     

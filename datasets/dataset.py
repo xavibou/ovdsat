@@ -22,18 +22,24 @@ class DINODataset(Dataset):
         with open(annotations_file) as f:
             data = json.load(f)
             n_total = len(data)
-
-        data = [{k: v} for k, v in data.items() if len(v)]
         
-        '''isinfo = [i for i in data[0].items()]
-        if isinfo[0][0] == 'info':
-            data = [data[1], data[3], data[2]]'''
+        self.images = data.get('images', [])
+        self.annotations = data.get('annotations', [])
+        categories = data.get('categories', [])
 
-        self.images = data[0]['images']
-        self.annotations = data[1]['annotations']
-        categories = data[2]['categories']
+        #data = [{k: v} for k, v in data.items() if len(v)]
+        
+        #isinfo = [i for i in data[0].items()]
+        #if isinfo[0][0] == 'info':
+        #    data = [data[1], data[3], data[2]]
 
-        self.names = {idx: label for idx, label in enumerate(self.embedding_classes)}
+        #self.images = data[0]['images']
+        #self.annotations = data[1]['annotations']
+        #categories = data[2]['categories']
+        if self.real_indices:
+            self.names = {idx: label['name'] for idx, label in enumerate(categories)}
+        else:
+            self.names = {idx: label for idx, label in enumerate(self.embedding_classes)}
         self.map_id_to_name = {entry['id']: entry['name'] for entry in categories}
         self.counts, self.class_weights = self.get_annotation_counts(self.annotations, categories)
 
@@ -54,6 +60,7 @@ class DINODataset(Dataset):
                 A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
                 A.PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=[0, 0, 0], p=0.5),
                 A.RandomResizedCrop(height=h, width=w, scale=(0.5, 1), p=1),
+                #A.Resize(h, w),
             ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids']))
         else:
             self.augs = A.Compose([
@@ -66,7 +73,6 @@ class DINODataset(Dataset):
     def get_annotation_counts(self, annotations, categories):
 
         label_counts = {category: 0 for category in self.embedding_classes}
-
 
         for annotation in annotations:
             category_id = annotation['category_id']
@@ -97,7 +103,7 @@ class DINODataset(Dataset):
             if annotation["bbox"][-1] < 1 or annotation["bbox"][-2] < 1:
                 continue
             if self.real_indices:
-                labels.append(annotation["category_id"] - 1)
+                labels.append(annotation["category_id"])
             else:
                 labels.append(self.map_class_id_to_embedding(annotation["category_id"]))
             boxes.append(annotation["bbox"])    
