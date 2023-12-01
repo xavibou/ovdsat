@@ -1,6 +1,7 @@
 # The logs directory names 'run'
 run
 run/*
+*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
