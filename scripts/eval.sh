@@ -9,4 +9,6 @@ python eval.py \
     --num_workers 8 \
     --iou_thr 0.1 \
     --conf_thres 0.1 \
-    --scale_factor 1 2\
+    --scale_factor 1 2 \
+    --save_images \
+    --save_dir /mnt/ddisk/boux/code/ovdsat/run/train/plots \

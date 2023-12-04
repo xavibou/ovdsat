@@ -222,7 +222,7 @@ def train(args, model, dataloader, val_dataloader, device):
         accuracy = total_correct / total_samples
 
         # Update the learning rate
-        scheduler.step()
+        #scheduler.step()
         print(f"Epoch [{epoch + 1}/{args.num_epochs}] Train Loss: {total_loss / len(dataloader)}  |  Val Loss: {val_loss / len(val_dataloader)} \nVal Accuracy: {accuracy} --> ({total_correct}/{total_samples})")
 
     return model

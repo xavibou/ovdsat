@@ -41,7 +41,7 @@ class DINODataset(Dataset):
         else:
             self.names = {idx: label for idx, label in enumerate(self.embedding_classes)}
         self.map_id_to_name = {entry['id']: entry['name'] for entry in categories}
-        self.counts, self.class_weights = self.get_annotation_counts(self.annotations, categories)
+        self.counts = self.get_annotation_counts(self.annotations, categories)
 
         # Define a PyTorch image transform
         self.transform = T.Compose([
@@ -80,8 +80,8 @@ class DINODataset(Dataset):
             label_counts[category_name] += 1
     
         total_classes = len(self.embedding_classes)
-        class_weights = [total_classes / (label_counts[label] * total_classes) for label in self.embedding_classes]
-        return label_counts, torch.Tensor(class_weights)
+        #class_weights = [total_classes / (label_counts[label] * total_classes) for label in self.embedding_classes]
+        return label_counts #, torch.Tensor(class_weights)
 
     def map_class_id_to_embedding(self, id):
         target_name = self.map_id_to_name.get(id)
