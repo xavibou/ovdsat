@@ -2,34 +2,100 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 import torchvision.transforms as T
+from transformers import CLIPModel
 
 class OVDClassifier(torch.nn.Module):
 
-    def __init__(self, prototypes, dino_version='dinov2_vitl14', target_size=(560,560), scale_factor=2, min_box_size=5, ignore_index=-1):
+    def __init__(self, prototypes, backbone_type='dinov2', target_size=(560,560), scale_factor=2, min_box_size=5, ignore_index=-1):
         super().__init__()
         self.scale_factor = scale_factor
         self.target_size = target_size
         self.min_box_size = min_box_size
         self.ignore_index = ignore_index
+        self.backbone_type = backbone_type
         
         if isinstance(self.scale_factor, int):
             self.scale_factor = [self.scale_factor]
 
-        # Initialize DINOv2 frozen backbone
-        self.dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
-        for name, parameter in self.dino.named_parameters():
-            parameter.requires_grad = False
+        self.backbone = self.initialize_backbone(backbone_type)  # Initialize backbone
         
         # Initialize embedding as a learnable parameter
         self.embedding = torch.nn.Parameter(prototypes)
         self.num_classes = self.embedding.shape[0]
     
-    
-    def extract_dinov2_features(self, images, scale_factor=1):
-        images = F.interpolate(images, scale_factor=scale_factor, mode='bicubic')
+    def initialize_backbone(self, backbone_type):
+        if backbone_type == 'dinov2':
+            backbone = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
+        elif backbone_type == 'clip-32':
+            backbone = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").vision_model
+        elif backbone_type == 'clip-14':
+            backbone = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").vision_model
+        else:
+            raise ValueError(f'Backbone {backbone} not supported')
         
+        for name, parameter in backbone.named_parameters():
+            parameter.requires_grad = False
+        
+        return backbone
+    
+    
+    def extract_clip_features(self, images, model, tile_size=224, patch_size=14):
+        # Extract size and number of tiles
+        B, _, image_size, _ = images.shape
+        D = 1024
+        num_tiles = (image_size // tile_size)**2 if image_size % tile_size == 0 else (image_size // tile_size + 1)**2
+        num_tiles_side = int(num_tiles**0.5)
+
+        # Create full image features tensor and a counter for aggregation
+        output_features = torch.zeros((B, image_size // patch_size, image_size // patch_size, D)).to(images.device)
+        count_tensor = torch.zeros((B, image_size // patch_size, image_size // patch_size,)).to(images.device)
+
+        # Process tiles through CLIP
         with torch.no_grad():
-            feats = self.dino.forward_features(images[:2])['x_prenorm'][:, 1:]
+            for i in range(num_tiles_side):
+                for j in range(num_tiles_side):
+
+                    # Update tile coords
+                    start_i = i * tile_size
+                    start_j = j * tile_size
+                    end_i = min(start_i + tile_size, image_size)
+                    end_j = min(start_j + tile_size, image_size)
+
+                    # If tile exceeds, make new tile containing more image content
+                    if end_i - start_i < tile_size:
+                        start_i = end_i - tile_size
+                    if end_j - start_j < tile_size:
+                        start_j = end_j - tile_size
+        
+                    # Extract the tile from the original image
+                    tile = images[:, :, start_i:end_i, start_j:end_j]
+        
+                    # Extract CLIP's features before token pooling
+                    image_features = model(tile).last_hidden_state[:, 1:]
+                    _, K, D = image_features.shape
+                    p_w = p_h = int(K**0.5)
+                    image_features = image_features.reshape(B, p_h, p_w, -1)  # Reshape to 2D
+
+                    # Add features to their location in the original image and track counts per location
+                    output_features[:, start_i // patch_size:end_i // patch_size, start_j // patch_size:end_j // patch_size] += image_features
+                    count_tensor[:, start_i // patch_size:end_i // patch_size, start_j // patch_size:end_j // patch_size] += 1
+        
+        # Average the overlapping patches
+        output_features /= count_tensor.unsqueeze(-1)
+    
+        return output_features, count_tensor
+    
+    def extract_features(self, images, scale_factor=1):
+        images = F.interpolate(images, scale_factor=scale_factor, mode='bicubic')
+
+        if self.backbone_type == 'dinov2':
+            with torch.no_grad():
+                feats = self.backbone.forward_features(images[:2])['x_prenorm'][:, 1:]
+        elif self.backbone_type.startswith('clip'):
+            patch_size = 14 if self.backbone_type == 'clip-14' else 32
+            feats, _ = self.extract_clip_features(images, self.backbone, tile_size=224, patch_size=patch_size)
+            feats = feats.view(feats.shape[0], -1, feats.shape[-1])
+
         return feats
 
     def get_cosim(self, feats, embedding, normalize=False):
@@ -91,17 +157,6 @@ class OVDClassifier(torch.nn.Module):
         cosim = F.interpolate(cosim, size=self.target_size, mode='bicubic')
 
         return cosim
-
-    def extract_image_cosim(self, images, normalize=False):
-
-        with torch.no_grad():
-            # Get images DINOv2 features
-            feats = self.extract_dinov2_features(images, self.scale_factor)
-    
-            # Compute cosine similarity with all classes in the embedding
-            cosine_sim = self.get_cosim(feats, self.embedding, normalize=normalize)
-            
-        return cosine_sim
     
 
     def forward(self, images, boxes, cls=None, normalize=False, return_cosim=False):
@@ -110,7 +165,7 @@ class OVDClassifier(torch.nn.Module):
         for scale in self.scale_factor:
         
             # Get images DINOv2 features
-            feats = self.extract_dinov2_features(images, scale)
+            feats = self.extract_features(images, scale)
 
             # Compute cosine similarity with all classes in the embedding
             cosine_sim = self.get_cosim_mini_batch(feats, self.embedding, normalize=normalize)

@@ -16,7 +16,7 @@ class OVDDetector(torch.nn.Module):
     def __init__(self,
                 prototypes,
                 bg_prototypes=None,
-                dino_version='dinov2_vitl14',
+                backbone_type='dinov2',
                 target_size=(560,560),
                 scale_factor=2,
                 min_box_size=5,
@@ -31,17 +31,18 @@ class OVDDetector(torch.nn.Module):
         self.ignore_index = ignore_index
         self.class_names = prototypes['label_names']
         self.num_classes = len(self.class_names)
+        self.backbone_type = backbone_type
 
         if bg_prototypes is not None:
             all_prototypes = torch.cat([prototypes['prototypes'], bg_prototypes['prototypes']]).float()
         else:
             all_prototypes = prototypes['prototypes']
 
-        self.classifier = OVDClassifier(all_prototypes, dino_version, target_size, scale_factor, min_box_size, ignore_index)
+        self.classifier = OVDClassifier(all_prototypes, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
         self.rpn_cfg, self.rpn = get_RPN(rpn_config, rpn_checkpoint)
     
-        self.mean = torch.tensor([0.485, 0.456, 0.406]).to(self.rpn_cfg.MODEL.DEVICE)
-        self.std = torch.tensor([0.229, 0.224, 0.225]).to(self.rpn_cfg.MODEL.DEVICE)
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).to(self.rpn_cfg.MODEL.DEVICE) if self.backbone_type == 'dinov2' else torch.tensor([0.48145466, 0.4578275, 0.40821073]).to(self.rpn_cfg.MODEL.DEVICE)
+        self.std = torch.tensor([0.229, 0.224, 0.225]).to(self.rpn_cfg.MODEL.DEVICE) if self.backbone_type == 'dinov2' else torch.tensor([0.26862954, 0.26130258, 0.27577711]).to(self.rpn_cfg.MODEL.DEVICE)
 
 
     def generate_proposals(self, images):
@@ -61,11 +62,11 @@ class OVDDetector(torch.nn.Module):
         return boxes, box_scores
     
 
-    def prepare_for_dino(self, input_tensor):
+    def prepare_for_backbone(self, input_tensor):
         # Scale the values to range from 0 to 1
         input_tensor /= 255.0
         
-        # Normalize the tensor
+        # Normalize the tensors
         normalized_tensor = (input_tensor - self.mean[:, None, None]) / self.std[:, None, None]
         return normalized_tensor
     
@@ -77,7 +78,7 @@ class OVDDetector(torch.nn.Module):
         # Classify boxes with classifier
         B, num_proposals, _ = proposals.shape
         # TODO: fix to work with B>2
-        preds = self.classifier(self.prepare_for_dino(images), proposals, normalize=True)
+        preds = self.classifier(self.prepare_for_backbone(images), proposals, normalize=True)
 
         # Extract class scores and predicted classes
         preds = preds.reshape(B, num_proposals, -1)
