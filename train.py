@@ -9,6 +9,7 @@ import torch.nn as nn
 from tqdm import tqdm  # Import tqdm
 from torch.optim.lr_scheduler import StepLR
 from argparse import ArgumentParser
+from utils_dir.backbones_utils import prepare_image_for_backbone
 
 def prepare_model(args):
     # Use GPU if available
@@ -26,7 +27,7 @@ def prepare_model(args):
         all_prototypes = prototypes['prototypes']
 
     # Initialize model and move it to device
-    model = OVDClassifier(all_prototypes, target_size=args.target_size, scale_factor=args.scale_factor).to(device)
+    model = OVDClassifier(all_prototypes, backbone_type=args.backbone_type, target_size=args.target_size, scale_factor=args.scale_factor).to(device)
     model.train()
     
     return model, device
@@ -112,9 +113,12 @@ def plot_image_with_boxes(image_tensor, boxes_tensor, save_path=None):
         plt.show()
     plt.close()
 
-def prepare_for_dino(input_tensor):
-    mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
-    std = torch.tensor([0.229, 0.224, 0.225]).cuda()
+def prepare_for_backbone(input_tensor, backbone_type):
+
+    mean = torch.tensor([0.485, 0.456, 0.406]).to(input_tensor.device) if backbone_type == 'dinov2' else torch.tensor([0.48145466, 0.4578275, 0.40821073]).to(input_tensor.device)
+    std = torch.tensor([0.229, 0.224, 0.225]).to(input_tensor.device) if backbone_type == 'dinov2' else torch.tensor([0.26862954, 0.26130258, 0.27577711]).to(input_tensor.device)
+
+    #breakpoint()
     
     # Scale the values to range from 0 to 1
     input_tensor /= 255.0
@@ -158,7 +162,8 @@ def train(args, model, dataloader, val_dataloader, device):
             labels = labels.to(device)
 
             # Forward pass
-            logits = model(prepare_for_dino(images), boxes, labels)
+            #logits = model(prepare_for_backbone(images, args.backbone_type), boxes, labels)
+            logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels)
 
             if args.only_train_prototypes == False:
                 # Assign bg_labels to background examples
@@ -201,7 +206,7 @@ def train(args, model, dataloader, val_dataloader, device):
                 labels = labels.to(device)
 
                 # Forward pass
-                logits = model(prepare_for_dino(images), boxes, labels)
+                logits = model(prepare_for_backbone(images, args.backbone_type), boxes, labels)
 
                 if args.only_train_prototypes == False:
                     # Assign bg_labels to background examples
@@ -214,6 +219,7 @@ def train(args, model, dataloader, val_dataloader, device):
                 # Calculate predicted labels
                 predicted_labels = torch.argmax(logits, dim=1)[labels[0,:]>=0]
 
+                #breakpoint()
                 # Count correct predictions
                 total_correct += torch.sum(predicted_labels == labels[labels != -1]).item()
                 total_samples += labels[labels != -1].numel()
@@ -286,6 +292,7 @@ if __name__ == '__main__':
     parser.add_argument('--prototypes_path', type=str, default=None)
     parser.add_argument('--bg_prototypes_path', type=str, default=None)
     parser.add_argument('--save_dir', type=str, default=None)
+    parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--target_size', nargs=2, type=int, metavar=('width', 'height'), default=(560, 560))
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=8)
@@ -296,7 +303,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--lr_step_size', type=int, default=30)
     parser.add_argument('--lr_decay', type=int, default=0.5)
-    parser.add_argument('--num_neg', type=int, default=20)
+    parser.add_argument('--num_neg', type=int, default=2)
     parser.add_argument('--min_neg_size', type=int, default=5)
     parser.add_argument('--max_neg_size', type=int, default=150)
     parser.add_argument('--iou_threshold', type=float, default=0.3)

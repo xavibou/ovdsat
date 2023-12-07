@@ -1,5 +1,7 @@
 # The logs directory names 'run'
 run
+weights
+weights/*
 run/*
 *.pt
 

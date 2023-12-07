@@ -6,3 +6,4 @@ TO-DO
 * Fine-tune OWL-ViT on the different sets and add its curve to the plot
 * Implement CLIP+RPN (and RemoteCLIP) approach by selecting the backbone
 * Try sous-échantillonnage
+* Try removing normalization from building prototypes (for clip too)!

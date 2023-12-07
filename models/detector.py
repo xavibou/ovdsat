@@ -7,6 +7,7 @@ from models.classifier import OVDClassifier
 from utils_dir.rpn_utils import get_RPN
 from utils_dir.processing_utils import filter_boxes
 from utils_dir.nms import non_max_suppression
+from utils_dir.backbones_utils import prepare_image_for_backbone
 
 def sigmoid(x):
     return 1 / (1 + torch.exp(-x))
@@ -41,9 +42,6 @@ class OVDDetector(torch.nn.Module):
         self.classifier = OVDClassifier(all_prototypes, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
         self.rpn_cfg, self.rpn = get_RPN(rpn_config, rpn_checkpoint)
     
-        self.mean = torch.tensor([0.485, 0.456, 0.406]).to(self.rpn_cfg.MODEL.DEVICE) if self.backbone_type == 'dinov2' else torch.tensor([0.48145466, 0.4578275, 0.40821073]).to(self.rpn_cfg.MODEL.DEVICE)
-        self.std = torch.tensor([0.229, 0.224, 0.225]).to(self.rpn_cfg.MODEL.DEVICE) if self.backbone_type == 'dinov2' else torch.tensor([0.26862954, 0.26130258, 0.27577711]).to(self.rpn_cfg.MODEL.DEVICE)
-
 
     def generate_proposals(self, images):
         images = [(x - self.rpn.pixel_mean) / self.rpn.pixel_std for x in images]
@@ -60,16 +58,7 @@ class OVDDetector(torch.nn.Module):
         box_scores = torch.stack([p.objectness_logits / 10 for p in proposals])
 
         return boxes, box_scores
-    
 
-    def prepare_for_backbone(self, input_tensor):
-        # Scale the values to range from 0 to 1
-        input_tensor /= 255.0
-        
-        # Normalize the tensors
-        normalized_tensor = (input_tensor - self.mean[:, None, None]) / self.std[:, None, None]
-        return normalized_tensor
-    
     def forward(self, images, iou_thr=0.2, conf_thres=0.001, box_conf_threshold=0.01):
 
         # Generate box proposals
@@ -78,7 +67,9 @@ class OVDDetector(torch.nn.Module):
         # Classify boxes with classifier
         B, num_proposals, _ = proposals.shape
         # TODO: fix to work with B>2
-        preds = self.classifier(self.prepare_for_backbone(images), proposals, normalize=True)
+        preds = self.classifier(prepare_image_for_backbone(images, self.backbone_type), proposals, normalize=True)
+
+        #breakpoint()
 
         # Extract class scores and predicted classes
         preds = preds.reshape(B, num_proposals, -1)

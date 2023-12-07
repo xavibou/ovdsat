@@ -162,6 +162,54 @@ def evaluate(args, model, dataloader, device):
         for i, c in enumerate(ap_class):
             print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
+    # File writing if save_dir is provided
+    if args.save_dir is not None:
+        os.makedirs(args.save_dir, exist_ok=True)
+        filename = 'results_{}.txt'.format(args.backbone_type)
+        save_file_path = os.path.join(args.save_dir, filename)
+
+        base_classes = ['car', 'helicopter', 'boat', 'long-vehicle']
+        new_classes = ['trainer-aircraft', 'pushback-truck', 'propeller-aircraft', 'truck',
+                        'charted-aircraft', 'figther-aircraft', 'van', 'airliner', 'stair-truck', 'bus']
+
+        
+
+        with open(save_file_path, 'w') as file:
+            file.write('Class Images Instances P R mAP50 mAP50-95\n')
+            file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % ('all', seen, nt.sum(), mp, mr, map50, map))
+
+            # Results per class
+            if nc > 1 and len(stats):
+                map50_base = map_base = mr_base = mp_base = 0
+                map50_new = map_new = mr_new = mp_new = 0
+                counttt = 0
+                counttt2 = 0
+                for i, c in enumerate(ap_class):
+                    file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+
+                    # TODO: fix this --> fix this to use a numpy array and not so repetitive code
+                    if names[c] in base_classes:
+                        map50_base += ap50[i]
+                        map_base += ap[i]
+                        mr_base += r[i]
+                        mp_base += p[i]
+                    elif names[c] in new_classes:
+                        map50_new += ap50[i]
+                        map_new += ap[i]
+                        mr_new += r[i]
+                        mp_new += p[i]
+                map50_base /= len(base_classes)
+                map_base /= len(base_classes)
+                mr_base /= len(base_classes)
+                mp_base /= len(base_classes)
+                map50_new /= len(new_classes)
+                map_new /= len(new_classes)
+                mr_new /= len(new_classes)
+                mp_new /= len(new_classes)
+                file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % ('total base', seen, nt.sum(), mp_base, mr_base, map50_base, map_base))
+                file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % ('total new', seen, nt.sum(), mp_new, mr_new, map50_new, map_new))
+                
+
 
 def get_model(args):
 
@@ -176,8 +224,8 @@ def get_model(args):
         from models.detector import OVDDetector
         # Load prototypes and background prototypes
         prototypes = torch.load(args.prototypes_path)
-        bg_prototypes = torch.load(args.bg_prototypes_path)
-        model = OVDDetector(prototypes, bg_prototypes, scale_factor=args.scale_factor, target_size=args.target_size).to(device)
+        bg_prototypes = torch.load(args.bg_prototypes_path) if args.bg_prototypes_path is not None else None
+        model = OVDDetector(prototypes, bg_prototypes, scale_factor=args.scale_factor, backbone_type=args.backbone_type, target_size=args.target_size).to(device)
     elif args.model_type == 'yolo':
         from ultralytics import YOLO
         if args.ckpt is None:
@@ -188,7 +236,7 @@ def get_model(args):
     return model, device
 
 def main(args):
-    print('Evaluating model: {} on dataset: {}'.format(args.model_type, args.annotations_file))
+    print('Evaluating model: {}: {} on dataset: {}'.format(args.model_type, args.backbone_type,args.annotations_file))
 
     # Initialize dataloader
     real_indices = False if args.model_type == 'DINOv2RPN' else True 
@@ -209,6 +257,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_dir', type=str, default=None)
     parser.add_argument('--annotations_file', type=str)
     parser.add_argument('--model_type', type=str, default='DINOv2RPN')
+    parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--ckpt', type=str, default=None)
     parser.add_argument('--prototypes_path', type=str, default=None)
     parser.add_argument('--bg_prototypes_path', type=str, default=None)

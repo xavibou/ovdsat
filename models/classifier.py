@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn.functional as F
 import torchvision.transforms as T
 from transformers import CLIPModel
+from utils_dir.backbones_utils import extract_backbone_features, load_backbone
 
 class OVDClassifier(torch.nn.Module):
 
@@ -17,7 +18,8 @@ class OVDClassifier(torch.nn.Module):
         if isinstance(self.scale_factor, int):
             self.scale_factor = [self.scale_factor]
 
-        self.backbone = self.initialize_backbone(backbone_type)  # Initialize backbone
+        #self.backbone = self.initialize_backbone(backbone_type)  # Initialize backbone
+        self.backbone = load_backbone(backbone_type)  # Initialize backbone
         
         # Initialize embedding as a learnable parameter
         self.embedding = torch.nn.Parameter(prototypes)
@@ -40,9 +42,12 @@ class OVDClassifier(torch.nn.Module):
     
     
     def extract_clip_features(self, images, model, tile_size=224, patch_size=14):
+        '''
+        Extract CLIP features from an image by splitting it into tiles and averaging the features of overlapping tiles.
+        '''
         # Extract size and number of tiles
         B, _, image_size, _ = images.shape
-        D = 1024
+        D = model.embeddings.embed_dim
         num_tiles = (image_size // tile_size)**2 if image_size % tile_size == 0 else (image_size // tile_size + 1)**2
         num_tiles_side = int(num_tiles**0.5)
 
@@ -165,7 +170,8 @@ class OVDClassifier(torch.nn.Module):
         for scale in self.scale_factor:
         
             # Get images DINOv2 features
-            feats = self.extract_features(images, scale)
+            #feats = self.extract_features(images, scale)
+            feats = extract_backbone_features(images, self.backbone, self.backbone_type, scale_factor=scale)
 
             # Compute cosine similarity with all classes in the embedding
             cosine_sim = self.get_cosim_mini_batch(feats, self.embedding, normalize=normalize)
