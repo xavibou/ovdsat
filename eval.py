@@ -14,6 +14,16 @@ import matplotlib.patches as patches
 import cv2
 
 def plot_image_with_boxes(image_path, detections, label_names, filepath, target_size):
+    '''
+    Plot image with bounding boxes
+    
+    Args:
+        image_path (str): Path to the image
+        detections (array[N, 6]): x1, y1, x2, y2, conf, class
+        label_names (list): List of label names
+        filepath (str): Path to save the image
+        target_size (tuple): Target size of the image
+    '''
     # Load the image using OpenCV
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -74,6 +84,12 @@ def process_batch(detections, labels, iouv):
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 def custom_xywh2xyxy(x):
+    '''
+    Convert nx4 boxes from [xmin, ymin, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+
+    Args:
+        x (torch.Tensor or np.array): Input tensor with shape (N, 4)
+    '''
     # TODO: put it in utils as we use it in train too!!!
     # Convert nx4 boxes from [xmin, ymin, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
@@ -83,6 +99,13 @@ def custom_xywh2xyxy(x):
 
 
 def evaluate(args, model, dataloader, device):
+    '''
+    Args:
+        args (argparse.Namespace): Input arguments
+        model (torch.nn.Module): Model to evaluate
+        dataloader (torch.utils.data.DataLoader): Dataloader
+        device (torch.device): Device to use
+    '''
     seen = 0
     jdict, stats, ap, ap_class = [], [], [], []
     iouv = torch.linspace(0.5, 0.95, 10, device=device)  # iou vector for mAP@0.5:0.95
@@ -212,8 +235,13 @@ def evaluate(args, model, dataloader, device):
 
 
 def get_model(args):
+    '''
+    Loads the model to evaluate given the input arguments and returns it.
+    
+    Args:
+        args (argparse.Namespace): Input arguments
+    '''
 
-    # Load model and dataset
     # Use GPU if available
     if torch.cuda.is_available():
         device = torch.device("cuda")

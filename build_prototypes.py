@@ -30,6 +30,16 @@ from argparse import ArgumentParser
 from utils_dir.backbones_utils import load_backbone, extract_backbone_features, get_backbone_params
 
 def preprocess(image, mask=None, backbone_type='dinov2', target_size=(602, 602), patch_size=14):
+    '''
+    Preprocess an image and its mask to fed the image to the backbone and mask the extracted patches.
+
+    Args:
+        image (PIL.Image): Input image
+        mask (PIL.Image): Input mask
+        backbone_type (str): Backbone type
+        target_size (tuple): Target size of the image
+        patch_size (int): Patch size of the backbone
+    '''
 
     if 'clip' in backbone_type:
         mean = [0.48145466, 0.4578275, 0.40821073]
@@ -55,6 +65,18 @@ def preprocess(image, mask=None, backbone_type='dinov2', target_size=(602, 602),
 
 # Step 1: Randomly generate boxes that do not intersect with annotations
 def generate_mask(image, annotations, num_b, min_size=30, max_size=200, max_iter = 100, patch_size=14):
+    '''
+    Randomly generate num_b masks that do not intersect with any annotation to generate negative samples.
+
+    Args:
+        image (PIL.Image): Input image
+        annotations (list): List of annotations
+        num_b (int): Number of background samples to extract per image
+        min_size (int): Minimum size of the boxes
+        max_size (int): Maximum size of the boxes
+        max_iter (int): Maximum number of iterations to generate a valid box
+        patch_size (int): Patch size of the backbone
+    '''
     _, _, h, w = image.shape
     mask = np.zeros((1, h, w), dtype=np.uint8)
 
@@ -93,6 +115,13 @@ def generate_mask(image, annotations, num_b, min_size=30, max_size=200, max_iter
     return mask
 
 def cluster_features(data, K=10):
+    '''
+    Cluster high-dimensional patch features using K-Means and return the cluster averages.
+
+    Args:
+        data (numpy.ndarray): Input data with shape (D, N)
+        K (int): Number of clusters
+    '''
     
     # Create and fit the K-Means model
     kmeans = KMeans(n_clusters=K, random_state=0)
@@ -112,6 +141,15 @@ def cluster_features(data, K=10):
     return cluster_averages
 
 def build_background_prototypes(args, model, device, patch_size):
+    '''
+    Build background prototypes by extracting negative samples and clustering their features into K clusters.
+
+    Args:
+        args (argparse.Namespace): Input arguments. Parameters for the clustering are stored here (K, num_b, etc.)
+        model (torch.nn.Module): Backbone model
+        device (str): Device to run the model on
+        patch_size (int): Patch size of the backbone
+    '''
 
     with open(args.annotations_file, "r") as f:
         dataset = json.load(f)
@@ -147,8 +185,7 @@ def build_background_prototypes(args, model, device, patch_size):
     kmeans_features = cluster_features(background_features, args.k)
     
     # Normalize the tensor along dim=1 using F.normalize
-    prototypes = F.normalize(torch.from_numpy(kmeans_features), dim=1)
-    #prototypes = torch.from_numpy(kmeans_features)
+    prototypes = F.normalize(torch.from_numpy(kmeans_features), dim=1)      # Normalize the feature vectors
     classes = ['bg_class_{}'.format(i+1) for i in range(prototypes.shape[0])]
 
     category_dict = {
@@ -159,6 +196,16 @@ def build_background_prototypes(args, model, device, patch_size):
     return category_dict
 
 def build_object_prototypes(args, model, device, patch_size):
+    '''
+    Build object prototypes by extracting the features containing the objects and averaging them for each class, separately.
+
+    Args:
+        args (argparse.Namespace): Input arguments
+        model (torch.nn.Module): Backbone model
+        device (str): Device to run the model on
+        patch_size (int): Patch size of the backbone
+    '''
+
     # Retrieve masked images and their classes
     class2images = {}
     classes = []
@@ -203,8 +250,7 @@ def build_object_prototypes(args, model, device, patch_size):
     # Average the features of all objects in each class
     for cls in class2tokens:
         class2tokens[cls] = torch.stack(class2tokens[cls]).mean(dim=0)
-    prototypes = F.normalize(torch.stack([class2tokens[c] for c in classes]), dim=1)
-    #prototypes = torch.stack([class2tokens[c] for c in classes])
+    prototypes = F.normalize(torch.stack([class2tokens[c] for c in classes]), dim=1)    # Normalize the feature vectors
 
     # Create dictionary and save
     category_dict = {
@@ -214,6 +260,13 @@ def build_object_prototypes(args, model, device, patch_size):
     return category_dict
 
 def main(args):
+    '''
+    Main function to build object and background prototypes.
+
+    Args:
+        args (argparse.Namespace): Input arguments
+    '''
+
     print('Building prototypes...')
     print(f'Loading model: {args.backbone_type}...')
 
@@ -227,13 +280,14 @@ def main(args):
     # Build object prototypes
     obj_category_dict = build_object_prototypes(args, model, device, patch_size)
     
+    # Create save directory if it does not exist
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
+    # Build background prototypes if specified
     if args.store_bg_prototypes:
-        # Build background prototypes
-        bg_category_dict = build_background_prototypes(args, model, device, patch_size)
 
+        bg_category_dict = build_background_prototypes(args, model, device, patch_size)
         save_name = f'bg_prototypes_{args.backbone_type}.pt'
         torch.save(bg_category_dict, os.path.join(args.save_dir, save_name))
 
@@ -249,7 +303,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_dir', type=str, default='/mnt/ddisk/boux/code/ovdsat/run/classification_benchmark_exp')
     parser.add_argument('--annotations_file', type=str, default='/mnt/ddisk/boux/code/data/simd/train_coco_subset_N10.json')
     parser.add_argument('--src_data_dir', type=str, default='/mnt/ddisk/boux/code/data/simd/training')
-    parser.add_argument('--backbone_type', type=str, default='georsclip-14')
+    parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--target_size', nargs=2, type=int, metavar=('width', 'height'), default=(602, 602))
     parser.add_argument('--window_size', type=int, default=224)
     parser.add_argument('--scale_factor', type=int, default=1)

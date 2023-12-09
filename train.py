@@ -12,6 +12,7 @@ from argparse import ArgumentParser
 from utils_dir.backbones_utils import prepare_image_for_backbone
 
 def prepare_model(args):
+    # TODO: move to utils
     # Use GPU if available
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -33,7 +34,7 @@ def prepare_model(args):
     return model, device
 
 def custom_xywh2xyxy(x):
-    # TODO: put it in utils as we use it in train too!!!
+    # TODO: put it in utils as we use it in eval too!!!
     # Convert nx4 boxes from [xmin, ymin, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
     y[..., 2] = x[..., 0] + x[..., 2]  # bottom right x
@@ -85,48 +86,6 @@ def generate_additional_boxes(images_batch, bounding_boxes_batch, iou_threshold,
     additional_boxes_tensor = torch.tensor(additional_boxes).reshape(B, -1, 4)
     return additional_boxes_tensor
 
-import matplotlib.pyplot as plt
-
-def plot_image_with_boxes(image_tensor, boxes_tensor, save_path=None):
-    # Assuming 'image_tensor' is a torch tensor of shape [3, H, W] (RGB image)
-    # 'boxes_tensor' contains N boxes in the format xmin, ymin, xmax, ymax
-
-    # Convert torch tensor to numpy array
-    image_np = image_tensor.permute(1, 2, 0).cpu().numpy() / 255.0
-
-    # Create figure and axes
-    fig, ax = plt.subplots(1)
-    ax.imshow(image_np)
-
-    # Plot bounding boxes
-    for box in boxes_tensor:
-        xmin, ymin, xmax, ymax = box.tolist()
-        width = xmax - xmin
-        height = ymax - ymin
-        rect = plt.Rectangle((xmin, ymin), width, height, linewidth=1, edgecolor='r', facecolor='none')
-        ax.add_patch(rect)
-
-    # Save the plot if save_path is provided
-    if save_path:
-        plt.savefig(save_path)
-    else:
-        plt.show()
-    plt.close()
-
-def prepare_for_backbone(input_tensor, backbone_type):
-
-    mean = torch.tensor([0.485, 0.456, 0.406]).to(input_tensor.device) if backbone_type == 'dinov2' else torch.tensor([0.48145466, 0.4578275, 0.40821073]).to(input_tensor.device)
-    std = torch.tensor([0.229, 0.224, 0.225]).to(input_tensor.device) if backbone_type == 'dinov2' else torch.tensor([0.26862954, 0.26130258, 0.27577711]).to(input_tensor.device)
-
-    #breakpoint()
-    
-    # Scale the values to range from 0 to 1
-    input_tensor /= 255.0
-    
-    # Normalize the tensor
-    normalized_tensor = (input_tensor - mean[:, None, None]) / std[:, None, None]
-    return normalized_tensor
-
 def train(args, model, dataloader, val_dataloader, device):
 
     # Define the optimizer and scheduler
@@ -162,7 +121,6 @@ def train(args, model, dataloader, val_dataloader, device):
             labels = labels.to(device)
 
             # Forward pass
-            #logits = model(prepare_for_backbone(images, args.backbone_type), boxes, labels)
             logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels)
 
             if args.only_train_prototypes == False:
@@ -206,7 +164,7 @@ def train(args, model, dataloader, val_dataloader, device):
                 labels = labels.to(device)
 
                 # Forward pass
-                logits = model(prepare_for_backbone(images, args.backbone_type), boxes, labels)
+                logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels)
 
                 if args.only_train_prototypes == False:
                     # Assign bg_labels to background examples

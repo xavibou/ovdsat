@@ -51,6 +51,7 @@ def load_backbone(backbone_type):
         model.output_tokens = True
     elif backbone_type == 'remoteclip-32':
         model, _, _ = open_clip.create_model_and_transforms('ViT-B-32')
+        # TODO: fix download and load ckpt into the model
         checkpoint_path = hf_hub_download("chendelong/RemoteCLIP", f"RemoteCLIP-ViT-B-32.pt", cache_dir='weights')
         ckpt = torch.load('/mnt/ddisk/boux/code/ovdsat/weights/models--chendelong--RemoteCLIP/snapshots/bf1d8a3ccf2ddbf7c875705e46373bfe542bce38/RemoteCLIP-ViT-B-32.pt', map_location="cpu")
         #ckpt = torch.load(PATH_CKPT_REMOTECLIP_32, map_location="cpu")
@@ -58,8 +59,8 @@ def load_backbone(backbone_type):
         model = model.visual
         model.output_tokens = True
     elif backbone_type == 'remoteclip-14':
-        #breakpoint()
         model, _, _ = open_clip.create_model_and_transforms('ViT-L-14')
+        # TODO: fix download and load ckpt into the model
         checkpoint_path = hf_hub_download("chendelong/RemoteCLIP", f"RemoteCLIP-ViT-L-14.pt", cache_dir='weights')
         ckpt = torch.load('/mnt/ddisk/boux/code/ovdsat/weights/models--chendelong--RemoteCLIP/snapshots/bf1d8a3ccf2ddbf7c875705e46373bfe542bce38/RemoteCLIP-ViT-L-14.pt', map_location="cpu")
         #ckpt = torch.load(PATH_CKPT_REMOTECLIP_14, map_location="cpu")
@@ -112,6 +113,15 @@ def get_backbone_params(backbone_type):
 
 
 def extract_clip_features(images, model, backbone_type, tile_size=224):
+    '''
+    Extract features from a CLIP pre-trained backbone using a sliding window approach to handle images of variable sizes.
+
+    Args:
+        images (torch.Tensor): Input tensor with shape (B, C, H, W)
+        model (torch.nn.Module): CLIP model
+        backbone_type (str): Backbone type
+        tile_size (int): Size of the tiles to process the image. Set to 224 as CLIP pre-trained models use 224x224 images.
+    '''
     # Extract size and number of tiles
     B, _, image_size, _ = images.shape
     
@@ -164,6 +174,15 @@ def extract_clip_features(images, model, backbone_type, tile_size=224):
     return output_features, count_tensor
 
 def extract_backbone_features(images, model, backbone_type, scale_factor=1):
+    '''
+    Extract features from a pre-trained backbone for any of the supported backbones.
+
+    Args:
+        images (torch.Tensor): Input tensor with shape (B, C, H, W)
+        model (torch.nn.Module): Backbone model
+        backbone_type (str): Backbone type
+        scale_factor (int): Scale factor for the input images. Set to 1 for no scaling.
+    '''
     images = F.interpolate(images, scale_factor=scale_factor, mode='bicubic')
 
     if backbone_type == 'dinov2':

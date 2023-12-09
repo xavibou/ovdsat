@@ -3,14 +3,10 @@ import torch
 import torchvision.transforms as T
 from detectron2.structures import ImageList
 from models.classifier import OVDClassifier
-
 from utils_dir.rpn_utils import get_RPN
 from utils_dir.processing_utils import filter_boxes
 from utils_dir.nms import non_max_suppression
 from utils_dir.backbones_utils import prepare_image_for_backbone
-
-def sigmoid(x):
-    return 1 / (1 + torch.exp(-x))
 
 class OVDDetector(torch.nn.Module):
 
@@ -18,7 +14,7 @@ class OVDDetector(torch.nn.Module):
                 prototypes,
                 bg_prototypes=None,
                 backbone_type='dinov2',
-                target_size=(560,560),
+                target_size=(602,602),
                 scale_factor=2,
                 min_box_size=5,
                 ignore_index=-1,
@@ -33,6 +29,7 @@ class OVDDetector(torch.nn.Module):
         self.class_names = prototypes['label_names']
         self.num_classes = len(self.class_names)
         self.backbone_type = backbone_type
+        self.box_norm_factor = 10   # Used to normalize the positive bounding box scores to be in the same range as the class scores
 
         if bg_prototypes is not None:
             all_prototypes = torch.cat([prototypes['prototypes'], bg_prototypes['prototypes']]).float()
@@ -44,6 +41,12 @@ class OVDDetector(torch.nn.Module):
     
 
     def generate_proposals(self, images):
+        '''
+        Generate box proposals using the model's RPN.
+
+        Args:
+            images (torch.Tensor): Input tensor with shape (B, C, H, W)
+        '''
         images = [(x - self.rpn.pixel_mean) / self.rpn.pixel_std for x in images]
         images = ImageList.from_tensors(
             images,
@@ -54,22 +57,26 @@ class OVDDetector(torch.nn.Module):
         proposals, _ = self.rpn.proposal_generator(images, features, None)
         
         boxes = torch.stack([p.proposal_boxes.tensor for p in proposals])
-        #box_scores = torch.stack([sigmoid(p.objectness_logits) for p in proposals])
-        box_scores = torch.stack([p.objectness_logits / 10 for p in proposals])
+        box_scores = torch.stack([p.objectness_logits / self.box_norm_factor for p in proposals])
 
         return boxes, box_scores
 
     def forward(self, images, iou_thr=0.2, conf_thres=0.001, box_conf_threshold=0.01):
+        '''
+        Args:
+            images (torch.Tensor): Input tensor with shape (B, C, H, W)
+            iou_thr (float): IoU threshold for NMS
+            conf_thres (float): Confidence threshold for NMS
+            box_conf_threshold (float): Confidence threshold for box proposals
+        '''
 
         # Generate box proposals
         proposals, box_scores = self.generate_proposals(images)
 
         # Classify boxes with classifier
         B, num_proposals, _ = proposals.shape
-        # TODO: fix to work with B>2
+        # TODO: Make it to work with B>1
         preds = self.classifier(prepare_image_for_backbone(images, self.backbone_type), proposals, normalize=True)
-
-        #breakpoint()
 
         # Extract class scores and predicted classes
         preds = preds.reshape(B, num_proposals, -1)
@@ -79,6 +86,7 @@ class OVDDetector(torch.nn.Module):
         # Filter predictions and prepare for NMS
         processed_predictions = []
         for b in range(B):
+            # Filter and prepare boxes for NMS
             filtered_boxes, filtered_classes, filtered_scores = filter_boxes(proposals[b],
                                                                              preds[b],
                                                                              box_scores[b],
