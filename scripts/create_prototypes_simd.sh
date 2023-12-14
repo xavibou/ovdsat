@@ -1,6 +1,7 @@
 #!/bin/bash
 
-for backbone in dinov2 clip-14 clip-32 georsclip-14 georsclip-32 remoteclip-14 remoteclip-32 openclip-14 openclip-32
+#for backbone in dinov2 clip-14 clip-32 georsclip-14 georsclip-32 remoteclip-14 remoteclip-32 openclip-14 openclip-32
+for backbone in dinov2-reg
 do
     echo "Creating prototypes for ${backbone}"
 

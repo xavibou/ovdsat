@@ -7,9 +7,9 @@ do
     python eval.py \
         --root_dir /mnt/ddisk/boux/code/data/simd/validation \
         --annotations_file /mnt/ddisk/boux/code/data/simd/val_coco.json \
-        --save_dir "run/eval/prototypes" \
-        --prototypes_path run/train/learned_prototype_${backbone}/prototypes.pth \
-        --bg_prototypes_path /mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/bg_prototypes_${backbone}.pt \
+        --save_dir "run/eval/learned_prototypes_neg_samples" \
+        --prototypes_path run/train/learned_prototype_${backbone}_neg_samples/prototypes.pth \
+        --bg_prototypes_path run/train/learned_prototype_${backbone}_neg_samples/bg_prototypes.pth \
         --backbone_type ${backbone} \
         --target_size 602 602\
         --batch_size 1 \

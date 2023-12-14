@@ -12,7 +12,7 @@ from argparse import ArgumentParser
 from utils_dir.backbones_utils import prepare_image_for_backbone
 
 def prepare_model(args):
-    # TODO: move to utils
+    # TODO: move to utils or to models __init__.py
     # Use GPU if available
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -177,7 +177,6 @@ def train(args, model, dataloader, val_dataloader, device):
                 # Calculate predicted labels
                 predicted_labels = torch.argmax(logits, dim=1)[labels[0,:]>=0]
 
-                #breakpoint()
                 # Count correct predictions
                 total_correct += torch.sum(predicted_labels == labels[labels != -1]).item()
                 total_samples += labels[labels != -1].numel()
@@ -264,7 +263,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_neg', type=int, default=2)
     parser.add_argument('--min_neg_size', type=int, default=5)
     parser.add_argument('--max_neg_size', type=int, default=150)
-    parser.add_argument('--iou_threshold', type=float, default=0.3)
+    parser.add_argument('--iou_threshold', type=float, default=0)
     parser.add_argument('--only_train_prototypes', action='store_true', default=False)
     args = parser.parse_args()
     main(args)

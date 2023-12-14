@@ -25,6 +25,8 @@ def load_backbone(backbone_type):
     '''
     if backbone_type == 'dinov2':
         model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
+    elif backbone_type == 'dinov2-reg':
+        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14_reg')
     elif backbone_type == 'clip-32':
         model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").vision_model
     elif backbone_type == 'clip-14':
@@ -82,8 +84,8 @@ def prepare_image_for_backbone(input_tensor, backbone_type):
     '''
 
     # Define mean and std for normalization depending on the backbone type
-    mean = torch.tensor([0.485, 0.456, 0.406]).to(input_tensor.device) if backbone_type == 'dinov2' else torch.tensor([0.48145466, 0.4578275, 0.40821073]).to(input_tensor.device)
-    std = torch.tensor([0.229, 0.224, 0.225]).to(input_tensor.device) if backbone_type == 'dinov2' else torch.tensor([0.26862954, 0.26130258, 0.27577711]).to(input_tensor.device)
+    mean = torch.tensor([0.485, 0.456, 0.406]).to(input_tensor.device) if 'dinov2' in backbone_type else torch.tensor([0.48145466, 0.4578275, 0.40821073]).to(input_tensor.device)
+    std = torch.tensor([0.229, 0.224, 0.225]).to(input_tensor.device) if 'dinov2' in backbone_type else torch.tensor([0.26862954, 0.26130258, 0.27577711]).to(input_tensor.device)
     
     # Scale the values to range from 0 to 1
     input_tensor /= 255.0
@@ -103,7 +105,7 @@ def get_backbone_params(backbone_type):
     if backbone_type == 'georsclip-14':
         patch_size = 14
         D = 1280
-    elif '14' in backbone_type or backbone_type == 'dinov2':
+    elif '14' in backbone_type or 'dinov2' in backbone_type:
         patch_size = 14
         D = 1024
     else:
@@ -185,7 +187,7 @@ def extract_backbone_features(images, model, backbone_type, scale_factor=1):
     '''
     images = F.interpolate(images, scale_factor=scale_factor, mode='bicubic')
 
-    if backbone_type == 'dinov2':
+    if 'dinov2' in backbone_type:
         with torch.no_grad():
             feats = model.forward_features(images[:2])['x_prenorm'][:, 1:]
     elif 'clip' in backbone_type:

@@ -27,15 +27,6 @@ class DINODataset(Dataset):
         self.annotations = data.get('annotations', [])
         categories = data.get('categories', [])
 
-        #data = [{k: v} for k, v in data.items() if len(v)]
-        
-        #isinfo = [i for i in data[0].items()]
-        #if isinfo[0][0] == 'info':
-        #    data = [data[1], data[3], data[2]]
-
-        #self.images = data[0]['images']
-        #self.annotations = data[1]['annotations']
-        #categories = data[2]['categories']
         if self.real_indices:
             self.names = {idx: label['name'] for idx, label in enumerate(categories)}
         else:
@@ -147,4 +138,3 @@ class DINODataset(Dataset):
         padded_labels = labels + [-1] * (self.max_boxes - len(labels))
 
         return torch.as_tensor(image.astype("float32").transpose(2, 0, 1)), torch.tensor(padded_boxes), torch.tensor(padded_labels), metadata
-        

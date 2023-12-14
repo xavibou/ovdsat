@@ -218,8 +218,10 @@ def build_object_prototypes(args, model, device, patch_size):
             classes = classes + [class_name] if class_name not in classes else classes
             mask_file = osp.splitext(f)[0] + '.mask.jpg'
             if class_name not in class2images:
+                #breakpoint()
                 class2images[class_name] = []
-            class2images[class_name.strip().lower()].append((image_file, mask_file)) 
+            #breakpoint()
+            class2images[class_name.strip()].append((image_file, mask_file)) 
             
             masked_imgs.append(Image.fromarray(cv2.imread(image_file) * (cv2.imread(mask_file) != 0)))
     

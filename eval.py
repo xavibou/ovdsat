@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from utils_dir.nms import non_max_suppression
 from datasets.dataset import DINODataset
 from utils_dir.metrics import ConfusionMatrix, ap_per_class, box_iou
+from datasets import get_base_new_classes
 
 import os
 import matplotlib.pyplot as plt
@@ -190,11 +191,7 @@ def evaluate(args, model, dataloader, device):
         os.makedirs(args.save_dir, exist_ok=True)
         filename = 'results_{}.txt'.format(args.backbone_type)
         save_file_path = os.path.join(args.save_dir, filename)
-
-        base_classes = ['car', 'helicopter', 'boat', 'long-vehicle']
-        new_classes = ['trainer-aircraft', 'pushback-truck', 'propeller-aircraft', 'truck',
-                        'charted-aircraft', 'figther-aircraft', 'van', 'airliner', 'stair-truck', 'bus']
-
+        base_classes, new_classes = get_base_new_classes(args.dataset)
         
 
         with open(save_file_path, 'w') as file:
@@ -205,8 +202,6 @@ def evaluate(args, model, dataloader, device):
             if nc > 1 and len(stats):
                 map50_base = map_base = mr_base = mp_base = 0
                 map50_new = map_new = mr_new = mp_new = 0
-                counttt = 0
-                counttt2 = 0
                 for i, c in enumerate(ap_class):
                     file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
@@ -284,6 +279,7 @@ if __name__ == '__main__':
     parser.add_argument('--root_dir', type=str)
     parser.add_argument('--save_dir', type=str, default=None)
     parser.add_argument('--annotations_file', type=str)
+    parser.add_argument('--dataset', type=str)
     parser.add_argument('--model_type', type=str, default='DINOv2RPN')
     parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--ckpt', type=str, default=None)
