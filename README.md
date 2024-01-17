@@ -19,7 +19,25 @@ Abstract
 ## Contents
 
 1. [Overview](#Overview)
-1. [Testing](#Testing)
-1. [Training](#Training)
+1. [Data preparation](#Data-preparation)
+1. [Create prototypes](#Create-prototypes)
+1. [Fine-tune prototypes](#Fine-tune-prototypes)
+1. [Evaluate](#Evaluate)
 1. [Citation](#Citation)
 1. [License and Acknowledgement](#License-and-Acknowledgement)
+
+### Overview
+
+### Data preparation
+
+### Create prototypes
+
+### Fine-tune prototypes
+
+### Evaluate
+
+### Citation
+
+### License and Acknowledgement
+
+This project is released under the GPL-3.0 license.
