@@ -36,22 +36,23 @@ Detect your desired objects in optical remote sensing data via a few simple step
 1. Evaluate your learned prototypes!
 
 ### Data preparation
-To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories in the project directory.
+To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories into the project directory.
 
 ### Create prototypes
-
+To generate the class-reference and background prototypes using [DINOv2](https://github.com/facebookresearch/dinov2) features, run the following command:
 ```Shell
 bash scripts/create_prototypes_simd.sh
 ```
+If you are running other data or the files/paths differ from ours, you can adapt the contents of the bash file to your own structure.
 
 ### Fine-tune prototypes
-
+Train the pre-initialised class-reference prototypes on the available data:
 ```Shell
 bash scripts/train_simd.sh
 ```
 
 ### Evaluate
-
+Evaluate the learned prototypes on unsen data:
 ```Shell
 bash scripts/eval_simd.sh
 ```
