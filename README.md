@@ -27,6 +27,13 @@ The goal of this paper is to perform object detection in satellite imagery with 
 1. [License and Acknowledgement](#License-and-Acknowledgement)
 
 ### Overview
+![Alt text](./assets/detector_inference.png)
+
+Detect your desired objects in optical remote sensing data via a few simple steps:
+1. Prepare the data with N labelled examples per category (we provide examples for N={5, 10, 30})
+1. Create class-reference prototypes and background prototypes
+1. Fine-tune class-reference embeddings
+1. Evaluate your learned prototypes!
 
 ### Data preparation
 
