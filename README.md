@@ -8,7 +8,7 @@ Centre Borelli, ENS Paris-Saclay
 
 [![arXiv](https://img.shields.io/badge/paper-arxiv-brightgreen)]()
 [![Google Drive](https://img.shields.io/badge/demo-IPOL-blueviolet)]()
-[![Google Drive](https://img.shields.io/badge/Google_Drive-blue)]()
+[![Google Drive](https://img.shields.io/badge/data-Google_Drive-blueviolet)]()
 [![Project](https://img.shields.io/badge/project%20web-github.io-red)]()
 
 This repository is the official PyTorch implementation of [NAME OF THE ARTICLE].
