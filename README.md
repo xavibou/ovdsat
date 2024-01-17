@@ -33,7 +33,7 @@ Detect your desired objects in optical remote sensing data via a few simple step
 1. Prepare the data with N labelled examples per category (we provide examples for N={5, 10, 30})
 1. Create class-reference prototypes and background prototypes
 1. Fine-tune class-reference embeddings
-1. Evaluate your learned prototypes!
+1. Detect objects via RPN and the learned embeddings!
 
 ### Data preparation
 To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories into the project directory.
