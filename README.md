@@ -36,6 +36,7 @@ Detect your desired objects in optical remote sensing data via a few simple step
 1. Evaluate your learned prototypes!
 
 ### Data preparation
+To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories in the project directory.
 
 ### Create prototypes
 
