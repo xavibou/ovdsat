@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Define the values of N you want to iterate over
-for backbone in dinov2 clip-32 clip-14 georsclip-32 georsclip-14 remoteclip-32 remoteclip-14
+for N in 5 10 30
 do
-    for N in 10 30 50
+    for backbone in dinov2
     do
         echo "Training ${backbone} with N=${N}"
         python train.py \
             --root_dir /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/yolo_annotations/train/images \
-            --save_dir "run/train/learned_prototypes/dior_${backbone}_neg_samples_${N}" \
+            --save_dir "run/train/learned_prototypes/dior_${backbone}_no_neg_${N}" \
             --annotations_file /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/yolo_annotations/train/train_coco_subset_N${N}.json \
             --val_annotations_file /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/yolo_annotations/train/train_coco_subset_N15_for_val.json \
             --prototypes_path "/mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/dior_N${N}/prototypes_${backbone}.pt" \
@@ -18,10 +18,10 @@ do
             --lr 2e-5 \
             --target_size 602 602 \
             --batch_size 1 \
-            --num_neg 1 \
             --num_workers 8 \
             --iou_thr 0.1 \
             --conf_thres 0.2 \
-            --scale_factor 1 
+            --scale_factor 1 \
+            --only_train_prototypes
     done
 done

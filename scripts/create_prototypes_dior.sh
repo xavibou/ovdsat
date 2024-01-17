@@ -1,8 +1,8 @@
 #!/bin/bash
 
-for backbone in dinov2 clip-14 clip-32 georsclip-14 georsclip-32 remoteclip-14 remoteclip-32
+for backbone in dinov2
 do
-    for N in 50
+    for N in 5
     do
         echo "Creating prototypes for ${backbone} with N=${N}"
 

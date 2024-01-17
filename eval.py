@@ -139,6 +139,7 @@ def evaluate(args, model, dataloader, device):
                                         multi_label=True,
                                         isdino=False)
         
+        breakpoint()
         # Save images
         if args.save_dir is not None and args.save_images:
             filepath = os.path.join(args.save_dir, '{}.png'.format(count))
