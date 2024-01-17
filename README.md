@@ -14,7 +14,7 @@ This repository is the official PyTorch implementation of [NAME OF THE ARTICLE].
 
 The goal of this paper is to perform object detection in satellite imagery with only a few examples, thus enabling users to specify any object class with minimal annotations. To this end, we explore recent methods and ideas from open-vocabulary detection for the remote sensing domain. We develop a few-shot object detector based on a traditional two-stage architecture, where the classification block is replaced by a prototype-based classifier. A large-scale pre-trained model is used to build class-reference embeddings or prototypes, which are compared to bounding box proposal contents for label prediction. In addition, we propose  fine-tuning class-reference embeddings on available training images to boost performance and learn the difference amongst similar classes, such as aircraft types. We perform extensive evaluations on multiple remote sensing datasets containing challenging and rare objects. Furthermore, we study the performance of both visual and image-text features, namely DINOv2 and CLIP, including two CLIP models specifically tailored for remote sensing applications. Our results indicate that [... extend when it's clear after all experiments].
 
-![Alt text](./assets/teaser_plot_v1.pdf)
+![Alt text](./assets/teaser_plot_v1.png)
 
 ## Contents
 
