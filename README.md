@@ -32,9 +32,21 @@ The goal of this paper is to perform object detection in satellite imagery with 
 
 ### Create prototypes
 
+```Shell
+bash scripts/create_prototypes_simd.sh
+```
+
 ### Fine-tune prototypes
 
+```Shell
+bash scripts/train_simd.sh
+```
+
 ### Evaluate
+
+```Shell
+bash scripts/eval_simd.sh
+```
 
 ### Citation
 
