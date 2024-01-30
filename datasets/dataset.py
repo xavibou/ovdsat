@@ -28,7 +28,30 @@ class DINODataset(Dataset):
         categories = data.get('categories', [])
 
         if self.real_indices:
-            self.names = {idx: label['name'] for idx, label in enumerate(categories)}
+            #self.names = {idx: label['name'] for idx, label in enumerate(categories)}
+            self.names = {
+                0: 'ship',
+                1: 'harbor',
+                2: 'baseballfield',
+                3: 'groundtrackfield',
+                4: 'chimney',
+                5: 'vehicle',
+                6: 'airport',
+                7: 'golffield',
+                8: 'overpass',
+                9: 'bridge',
+                10: 'Expressway-toll-station',
+                11: 'stadium',
+                12: 'tenniscourt',
+                13: 'storagetank',
+                14: 'airplane',
+                15: 'trainstation',
+                16: 'Expressway-Service-area',
+                17: 'windmill',
+                18: 'dam',
+                19: 'basketballcourt'
+            }
+
         else:
             self.names = {idx: label for idx, label in enumerate(self.embedding_classes)}
         self.map_id_to_name = {entry['id']: entry['name'] for entry in categories}
@@ -95,6 +118,8 @@ class DINODataset(Dataset):
                 continue
             if self.real_indices:
                 labels.append(annotation["category_id"])
+
+                #breakpoint()
             else:
                 labels.append(self.map_class_id_to_embedding(annotation["category_id"]))
             boxes.append(annotation["bbox"])    

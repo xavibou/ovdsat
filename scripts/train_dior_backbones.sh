@@ -11,8 +11,8 @@ do
             --save_dir "run/train/learned_prototypes/dior_${backbone}_no_neg_${N}" \
             --annotations_file /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/yolo_annotations/train/train_coco_subset_N${N}.json \
             --val_annotations_file /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/yolo_annotations/train/train_coco_subset_N15_for_val.json \
-            --prototypes_path "/mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/dior_N${N}/prototypes_${backbone}.pt" \
-            --bg_prototypes_path "/mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/dior_N${N}/bg_prototypes_${backbone}.pt" \
+            --prototypes_path /mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/dior_N${N}/prototypes_${backbone}.pt \
+            --bg_prototypes_path /mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/dior_N${N}/bg_prototypes_${backbone}.pt \
             --backbone_type ${backbone} \
             --num_epochs 200 \
             --lr 2e-5 \

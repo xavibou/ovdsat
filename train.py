@@ -7,7 +7,7 @@ from models.detector import OVDClassifier
 import torch.optim as optim
 import torch.nn as nn
 from tqdm import tqdm  # Import tqdm
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from argparse import ArgumentParser
 from utils_dir.backbones_utils import prepare_image_for_backbone
 
@@ -90,7 +90,8 @@ def train(args, model, dataloader, val_dataloader, device):
 
     # Define the optimizer and scheduler
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_decay)
+    #scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_decay)
+    scheduler = MultiStepLR(optimizer, milestones=[10, 60, 150], gamma=args.lr_decay)
 
     # Define the loss function (already defined in your model)
     criterion = nn.CrossEntropyLoss(ignore_index=-1)
@@ -121,15 +122,17 @@ def train(args, model, dataloader, val_dataloader, device):
             labels = labels.to(device)
 
             # Forward pass
-            logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels)
+            logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels, aggregation=args.aggregation)
 
             if args.only_train_prototypes == False:
                 # Assign bg_labels to background examples
-                bg_logits = torch.argmax(logits[:, num_cls:], dim=1) + num_cls
-                labels[labels == -2] = bg_logits[None, :][labels == -2]
+                bg_logits = torch.argmax(logits[:, :, num_cls:], dim=-1) + num_cls
+                labels[labels == -2] = bg_logits[labels == -2]
 
             # Compute loss
-            loss = criterion(logits, labels.view(-1))
+            #breakpoint()
+            B, N, C = logits.shape
+            loss = criterion(logits.view(-1, C), labels.view(-1))
 
             # If no valid box, continue
             has_nan = torch.isnan(loss).any().item()
@@ -168,14 +171,15 @@ def train(args, model, dataloader, val_dataloader, device):
 
                 if args.only_train_prototypes == False:
                     # Assign bg_labels to background examples
-                    bg_logits = torch.argmax(logits[:, num_cls:], dim=1) + num_cls
-                    labels[labels == -2] = bg_logits[None, :][labels == -2]
+                    bg_logits = torch.argmax(logits[:, :, num_cls:], dim=-1) + num_cls
+                    labels[labels == -2] = bg_logits[labels == -2]
 
                 # Compute loss
-                loss = criterion(logits, labels.view(-1))
+                B, N, C = logits.shape
+                loss = criterion(logits.view(-1, C), labels.view(-1))
 
                 # Calculate predicted labels
-                predicted_labels = torch.argmax(logits, dim=1)[labels[0,:]>=0]
+                predicted_labels = torch.argmax(logits, dim=-1).view(-1)[labels.view(-1)>=0]
 
                 # Count correct predictions
                 total_correct += torch.sum(predicted_labels == labels[labels != -1]).item()
@@ -185,7 +189,7 @@ def train(args, model, dataloader, val_dataloader, device):
         accuracy = total_correct / total_samples
 
         # Update the learning rate
-        #scheduler.step()
+        scheduler.step()
         print(f"Epoch [{epoch + 1}/{args.num_epochs}] Train Loss: {total_loss / len(dataloader)}  |  Val Loss: {val_loss / len(val_dataloader)} \nVal Accuracy: {accuracy} --> ({total_correct}/{total_samples})")
 
     return model
@@ -248,6 +252,7 @@ if __name__ == '__main__':
     parser.add_argument('--val_annotations_file', type=str)
     parser.add_argument('--prototypes_path', type=str, default=None)
     parser.add_argument('--bg_prototypes_path', type=str, default=None)
+    parser.add_argument('--aggregation', type=str, default='mean')
     parser.add_argument('--save_dir', type=str, default=None)
     parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--target_size', nargs=2, type=int, metavar=('width', 'height'), default=(560, 560))
@@ -259,7 +264,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--lr_step_size', type=int, default=30)
-    parser.add_argument('--lr_decay', type=int, default=0.5)
+    parser.add_argument('--lr_decay', type=int, default=0.1)
     parser.add_argument('--num_neg', type=int, default=0)
     parser.add_argument('--min_neg_size', type=int, default=5)
     parser.add_argument('--max_neg_size', type=int, default=150)

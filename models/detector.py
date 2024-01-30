@@ -61,7 +61,7 @@ class OVDDetector(torch.nn.Module):
 
         return boxes, box_scores
 
-    def forward(self, images, iou_thr=0.2, conf_thres=0.001, box_conf_threshold=0.01):
+    def forward(self, images, iou_thr=0.2, conf_thres=0.001, box_conf_threshold=0.01, return_cosim=False, aggregation='mean'):
         '''
         Args:
             images (torch.Tensor): Input tensor with shape (B, C, H, W)
@@ -76,7 +76,9 @@ class OVDDetector(torch.nn.Module):
         # Classify boxes with classifier
         B, num_proposals, _ = proposals.shape
         # TODO: Make it to work with B>1
-        preds = self.classifier(prepare_image_for_backbone(images, self.backbone_type), proposals, normalize=True)
+        preds = self.classifier(prepare_image_for_backbone(images, self.backbone_type), proposals, normalize=True, return_cosim=return_cosim, aggregation=aggregation)
+        if return_cosim:
+            preds, cosim = preds
 
         # Extract class scores and predicted classes
         preds = preds.reshape(B, num_proposals, -1)
@@ -105,5 +107,8 @@ class OVDDetector(torch.nn.Module):
             processed_predictions.append(nms_results[0])
 
         del preds, scores, classes, proposals, box_scores
+
+        if return_cosim:
+            return processed_predictions, cosim
         
         return processed_predictions

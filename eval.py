@@ -129,7 +129,9 @@ def evaluate(args, model, dataloader, device):
 
         with torch.no_grad():
             if args.model_type == 'DINOv2RPN':
-                preds = model(images, iou_thr=args.iou_thr, conf_thres=args.conf_thres)
+                #preds = model(images, iou_thr=args.iou_thr, conf_thres=args.conf_thres)
+                preds = model(images, iou_thr=args.iou_thr, conf_thres=args.conf_thres, aggregation=args.aggregation)
+
             else:
                 images /= 255
                 preds = model(images, augment=False)
@@ -143,7 +145,7 @@ def evaluate(args, model, dataloader, device):
         # Save images
         if args.save_dir is not None and args.save_images:
             filepath = os.path.join(args.save_dir, '{}.png'.format(count))
-            plot_image_with_boxes(metadata['impath'][0], preds[0].cpu(), dataloader.dataset.embedding_classes, filepath, args.target_size)
+            plot_image_with_boxes(metadata['impath'][0], preds[0].cpu(), names, filepath, args.target_size)
             count += 1
 
         
@@ -197,14 +199,14 @@ def evaluate(args, model, dataloader, device):
 
         with open(save_file_path, 'w') as file:
             file.write('Class Images Instances P R mAP50 mAP50-95\n')
-            file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % ('all', seen, nt.sum(), mp, mr, map50, map))
+            file.write('%22s%11i%11i%11.4g%11.4g%11.4g%11.4g\n' % ('all', seen, nt.sum(), mp, mr, map50, map))
 
             # Results per class
             if nc > 1 and len(stats):
                 map50_base = map_base = mr_base = mp_base = 0
                 map50_new = map_new = mr_new = mp_new = 0
                 for i, c in enumerate(ap_class):
-                    file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+                    file.write('%22s%11i%11i%11.4g%11.4g%11.4g%11.4g\n' % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
                     # TODO: fix this --> fix this to use a numpy array and not so repetitive code
                     if names[c] in base_classes:
@@ -225,8 +227,8 @@ def evaluate(args, model, dataloader, device):
                 map_new /= len(new_classes)
                 mr_new /= len(new_classes)
                 mp_new /= len(new_classes)
-                file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % ('total base', seen, nt.sum(), mp_base, mr_base, map50_base, map_base))
-                file.write('%22s%11i%11i%11.3g%11.3g%11.3g%11.3g\n' % ('total new', seen, nt.sum(), mp_new, mr_new, map50_new, map_new))
+                file.write('%22s%11i%11i%11.4g%11.4g%11.4g%11.4g\n' % ('total base', seen, nt.sum(), mp_base, mr_base, map50_base, map_base))
+                file.write('%22s%11i%11i%11.4g%11.4g%11.4g%11.4g\n' % ('total new', seen, nt.sum(), mp_new, mr_new, map50_new, map_new))
                 
 
 
@@ -286,6 +288,7 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt', type=str, default=None)
     parser.add_argument('--prototypes_path', type=str, default=None)
     parser.add_argument('--bg_prototypes_path', type=str, default=None)
+    parser.add_argument('--aggregation', type=str, default='mean')
     parser.add_argument('--target_size', nargs=2, type=int, metavar=('width', 'height'), default=(560, 560))
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=8)

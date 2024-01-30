@@ -25,28 +25,6 @@ class OVDClassifier(torch.nn.Module):
         self.embedding = torch.nn.Parameter(prototypes)
         self.num_classes = self.embedding.shape[0]
 
-    '''
-    def get_cosim(self, feats, embedding, normalize=False):
-        # Reshape and broadcast for cosine similarity
-        B, K, D = feats.shape
-        features_reshaped = feats.view(B, 1, K, D)
-        embedding_reshaped = embedding.view(1, self.num_classes, 1, D)
-    
-        # Compute dot product (cosine similarity without normalization)
-        dot_product = (features_reshaped * embedding_reshaped).sum(dim=3)
-
-        # Normalize cosine similarity maps (for inference) if normalize=True
-        if normalize:
-            # Compute norms
-            feats_norm = torch.norm(features_reshaped, dim=3, keepdim=True).squeeze(-1)
-            embedding_norm = torch.norm(embedding_reshaped, dim=3, keepdim=True).squeeze(-1)
-            # Normalize
-            dot_product /= (feats_norm * embedding_norm + 1e-8)  # Add epsilon for numerical stability
-    
-        # Reshape to 2D and return class similarity maps
-        patch_2d_size = int(np.sqrt(feats.shape[1]))
-        return dot_product.reshape(-1, self.num_classes, patch_2d_size, patch_2d_size)
-    '''
 
     def get_cosim_mini_batch(self, feats, embeddings, batch_size=100, normalize=False):
         '''
@@ -99,7 +77,7 @@ class OVDClassifier(torch.nn.Module):
         return cosim
     
 
-    def forward(self, images, boxes, cls=None, normalize=False, return_cosim=False):
+    def forward(self, images, boxes, cls=None, normalize=False, return_cosim=False, aggregation='mean', k=10):
         '''
         Args:
             images (torch.Tensor): Input tensor with shape (B, C, H, W)
@@ -110,21 +88,18 @@ class OVDClassifier(torch.nn.Module):
         '''
         
         scales = []
-        for scale in self.scale_factor:
-        
-            # Get images DINOv2 features
-            #feats = self.extract_features(images, scale)
-            feats = extract_backbone_features(images, self.backbone, self.backbone_type, scale_factor=scale)
 
-            # Compute cosine similarity with all classes in the embedding
+        for scale in self.scale_factor:
+            feats = extract_backbone_features(images, self.backbone, self.backbone_type, scale_factor=scale)
             cosine_sim = self.get_cosim_mini_batch(feats, self.embedding, normalize=normalize)
             scales.append(cosine_sim)
-        
+
         cosine_sim = torch.stack(scales).mean(dim=0)
 
          # Gather similarity values inside each box and compute average box similarity
         box_similarities = []
-        for b in range(images.shape[0]):
+        B = images.shape[0]
+        for b in range(B):
             image_boxes = boxes[b][:, :4]
     
             image_similarities = []
@@ -142,7 +117,20 @@ class OVDClassifier(torch.nn.Module):
                         count += 1
                         cls[b][i] = self.ignore_index   # If invalid box, assign the label to ignore it while computing the loss
                 
-                box_sim = cosine_sim[b, :, y_min:y_max -1, x_min:x_max -1].mean(dim=[1, 2])
+                if aggregation == 'mean':
+                    box_sim = cosine_sim[b, :, y_min:y_max -1, x_min:x_max -1].mean(dim=[1, 2])
+                elif aggregation == 'max':
+                    _,n,h,w = cosine_sim.shape
+                    box_sim, _ = cosine_sim[b, :, y_min:y_max - 1, x_min:x_max - 1].reshape(n, -1).max(dim=1)
+                elif aggregation == 'topk':
+                    _,n,h,w = cosine_sim.shape
+                    box_sim = cosine_sim[b, :, y_min:y_max - 1, x_min:x_max - 1].reshape(n, -1)
+                    topk = k if k <= box_sim.shape[1] else box_sim.shape[1]
+                    box_sim, _ = box_sim.topk(topk, dim=1)
+                    box_sim = box_sim.mean(dim=1)
+                else:
+                    raise ValueError('Invalid aggregation method')
+                
                 has_nan = torch.isnan(box_sim).any().item()
                 image_similarities.append(box_sim)
     
@@ -151,8 +139,8 @@ class OVDClassifier(torch.nn.Module):
         box_similarities = torch.stack(box_similarities)  # Shape: [B, max_boxes, N]
         
         if return_cosim:
-            return box_similarities.view(-1, self.num_classes), cosine_sim
+            return box_similarities.view(b, -1, self.num_classes), cosine_sim
 
         # Flatten box_logits and target_labels
-        return box_similarities.view(-1, self.num_classes)
+        return box_similarities.view(B, -1, self.num_classes)
     
