@@ -5,15 +5,16 @@ import torchvision.transforms as T
 from transformers import CLIPModel
 from utils_dir.backbones_utils import extract_backbone_features, load_backbone
 
-class OVDClassifier(torch.nn.Module):
+class OVDBaseClassifier(torch.nn.Module):
 
-    def __init__(self, prototypes, backbone_type='dinov2', target_size=(602,602), scale_factor=2, min_box_size=5, ignore_index=-1):
+    def __init__(self, prototypes, class_names, backbone_type='dinov2', target_size=(602,602), scale_factor=2, min_box_size=5, ignore_index=-1):
         super().__init__()
         self.scale_factor = scale_factor
         self.target_size = target_size
         self.min_box_size = min_box_size
         self.ignore_index = ignore_index
         self.backbone_type = backbone_type
+        self.class_names = class_names
         
         if isinstance(self.scale_factor, int):
             self.scale_factor = [self.scale_factor]
@@ -25,6 +26,8 @@ class OVDClassifier(torch.nn.Module):
         self.embedding = torch.nn.Parameter(prototypes)
         self.num_classes = self.embedding.shape[0]
 
+    def get_categories(self):
+        return {idx: label for idx, label in enumerate(self.class_names)}
 
     def get_cosim_mini_batch(self, feats, embeddings, batch_size=100, normalize=False):
         '''
@@ -76,7 +79,11 @@ class OVDClassifier(torch.nn.Module):
 
         return cosim
     
-
+    
+class OVDBoxClassifier(OVDBaseClassifier):
+    def __init__(self, prototypes, class_names, backbone_type='dinov2', target_size=(602,602), scale_factor=2, min_box_size=5, ignore_index=-1):
+        super().__init__(prototypes, class_names, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
+        
     def forward(self, images, boxes, cls=None, normalize=False, return_cosim=False, aggregation='mean', k=10):
         '''
         Args:
@@ -143,4 +150,51 @@ class OVDClassifier(torch.nn.Module):
 
         # Flatten box_logits and target_labels
         return box_similarities.view(B, -1, self.num_classes)
-    
+
+
+class OVDMaskClassifier(OVDBaseClassifier):
+    def __init__(self, prototypes, class_names, backbone_type='dinov2', target_size=(602,602), scale_factor=2, min_box_size=5, ignore_index=-1):
+        super().__init__(prototypes, class_names, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
+        
+    def forward(self, images, masks, cls=None, normalize=False, return_cosim=False, aggregation='mean', k=10):
+        '''
+        Args:
+            images (torch.Tensor): Input tensor with shape (B, C, H, W)
+            masks (torch.Tensor): Masks to classify with shape (B, max_masks, H, W)
+            cls (torch.Tensor): Class labels with shape (B, max_masks)
+            normalize (bool): Whether to normalize the cosine similarity maps
+            return_cosim (bool): Whether to return the cosine similarity maps
+        '''
+
+        scales = []
+
+        for scale in self.scale_factor:
+            feats = extract_backbone_features(images, self.backbone, self.backbone_type, scale_factor=scale)
+            cosine_sim = self.get_cosim_mini_batch(feats, self.embedding, normalize=normalize)
+            scales.append(cosine_sim)
+        # Compute cosine similarity maps
+        cosine_sim = torch.stack(scales).mean(dim=0)
+
+        # Multiply cosine similarity maps with masks element-wise
+        masked_cosine_similarity = cosine_sim.unsqueeze(1) * masks.unsqueeze(2)  # Shape: [B, M, N, H, W]
+
+        if aggregation == 'mean':
+            # Compute average cosine similarity values within masked areas
+            mask_sim = masked_cosine_similarity.sum(dim=(-2, -1)) / (masks.unsqueeze(2).sum(dim=(-1, -2)) + 1e-6)  # Shape: [B, M, N]
+        elif aggregation == 'max':
+            _, m, n, h, w = masked_cosine_similarity.shape
+            mask_sim = torch.max(masked_cosine_similarity.view(-1, m, n, h * w), dim=-1).values
+        elif aggregation == 'topk':
+            _, m, n, h, w = masked_cosine_similarity.shape
+            mask_sim = masked_cosine_similarity.view(-1, m, n, h * w)
+            topk = k if k <= mask_sim.shape[-1] else mask_sim.shape[-1]
+            mask_sim, _ = mask_sim.topk(topk, dim=-1)
+            mask_sim = mask_sim.mean(dim=-1)
+        else:
+            raise ValueError('Invalid aggregation method')
+
+        if return_cosim:
+            return mask_sim, cosine_sim
+
+        # Flatten box_logits and target_labels
+        return mask_sim

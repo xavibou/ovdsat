@@ -1,15 +1,18 @@
 import os
 import torch
 import random
+import numpy as np
 from torch.utils.data import DataLoader
 from datasets.dataset import DINODataset
-from models.detector import OVDClassifier
+from models.detector import OVDBoxClassifier, OVDMaskClassifier
 import torch.optim as optim
 import torch.nn as nn
 from tqdm import tqdm  # Import tqdm
 from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from argparse import ArgumentParser
 from utils_dir.backbones_utils import prepare_image_for_backbone
+from utils_dir.processing_utils import map_labels_to_prototypes
+from sklearn.metrics import classification_report
 
 def prepare_model(args):
     # TODO: move to utils or to models __init__.py
@@ -18,7 +21,7 @@ def prepare_model(args):
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-
+    
     # Load prototypes from checkpoint
     prototypes = torch.load(args.prototypes_path)
     bg_prototypes = torch.load(args.bg_prototypes_path) if args.bg_prototypes_path is not None else None
@@ -28,7 +31,8 @@ def prepare_model(args):
         all_prototypes = prototypes['prototypes']
 
     # Initialize model and move it to device
-    model = OVDClassifier(all_prototypes, backbone_type=args.backbone_type, target_size=args.target_size, scale_factor=args.scale_factor).to(device)
+    modelClass = OVDMaskClassifier if args.use_segmentation else OVDBoxClassifier
+    model = modelClass(all_prototypes, prototypes['label_names'], backbone_type=args.backbone_type, target_size=args.target_size, scale_factor=args.scale_factor).to(device)
     model.train()
     
     return model, device
@@ -90,47 +94,59 @@ def train(args, model, dataloader, val_dataloader, device):
 
     # Define the optimizer and scheduler
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    #scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_decay)
-    scheduler = MultiStepLR(optimizer, milestones=[10, 60, 150], gamma=args.lr_decay)
+    torch.autograd.set_detect_anomaly(True)
+    scheduler = MultiStepLR(optimizer, milestones=[10, 100], gamma=args.lr_decay)
 
     # Define the loss function (already defined in your model)
     criterion = nn.CrossEntropyLoss(ignore_index=-1)
-    num_cls = len(dataloader.dataset.embedding_classes)
+    num_cls = dataloader.dataset.get_category_number()
 
     # Training loop
     for epoch in range(args.num_epochs):
         total_loss = 0.0
         val_loss = 0.0
+        total_correct = 0
+        total_samples = 0
 
         # Use tqdm to create a progress bar for the dataloader
         for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc=f'Epoch {epoch + 1}/{args.num_epochs}', leave=False):
-            images, boxes, labels, _ = batch
+            images, boxes, labels, masks, _ = batch
+
+            # Convert map dataset labels classes to the model prototype indices
+            labels = map_labels_to_prototypes(dataloader.dataset.get_categories(), model.get_categories(), labels)
+
             if len(labels[labels != -1]) == 0:
                 continue   # skip if no boxes in the image
 
-            if args.only_train_prototypes == False:
-                # Create negative boxes and add them to the batch
-                neg_boxes = generate_additional_boxes(images, boxes, args.iou_threshold, args.min_neg_size, args.max_neg_size, args.num_neg)
-                neg_labels = torch.full((neg_boxes.shape[0], neg_boxes.shape[1]), -2, dtype=torch.long)
-                boxes = torch.cat([boxes, neg_boxes], dim=1)
-                labels = torch.cat([labels, neg_labels], dim=1)
+            if not args.use_segmentation:
+                if args.only_train_prototypes == False:
+                    # Create negative boxes and add them to the batch
+                    neg_boxes = generate_additional_boxes(images, boxes, args.iou_threshold, args.min_neg_size, args.max_neg_size, args.num_neg)
+                    neg_labels = torch.full((neg_boxes.shape[0], neg_boxes.shape[1]), -2, dtype=torch.long)
+                    boxes = torch.cat([boxes, neg_boxes], dim=1)
+                    labels = torch.cat([labels, neg_labels], dim=1)
 
-            boxes = custom_xywh2xyxy(boxes)
+                boxes = custom_xywh2xyxy(boxes)
+                images = images.float().to(device)
+                boxes = boxes.to(device)
+                labels = labels.to(device)
 
-            images = images.float().to(device)
-            boxes = boxes.to(device)
-            labels = labels.to(device)
+                # Forward pass
+                logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels, aggregation=args.aggregation)
 
-            # Forward pass
-            logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels, aggregation=args.aggregation)
-
-            if args.only_train_prototypes == False:
-                # Assign bg_labels to background examples
-                bg_logits = torch.argmax(logits[:, :, num_cls:], dim=-1) + num_cls
-                labels[labels == -2] = bg_logits[labels == -2]
-
+                if args.only_train_prototypes == False:
+                    # Assign bg_labels to background examples
+                    bg_logits = torch.argmax(logits[:, :, num_cls:], dim=-1) + num_cls
+                    labels[labels == -2] = bg_logits[labels == -2]
+            
+            else:
+                images = images.float().to(device)
+                masks = masks.float().to(device)
+                labels = labels.to(device)
+                # Forward pass
+                logits = model(prepare_image_for_backbone(images, args.backbone_type), masks, labels, aggregation=args.aggregation)
+            
             # Compute loss
-            #breakpoint()
             B, N, C = logits.shape
             loss = criterion(logits.view(-1, C), labels.view(-1))
 
@@ -145,45 +161,59 @@ def train(args, model, dataloader, val_dataloader, device):
             optimizer.step()
 
             total_loss += loss.item()
-        
+
         # Validation loop
         with torch.no_grad():
             total_correct = 0
             total_samples = 0
+            true_labels = []
+            total_predicted_labels = []
             for i, batch in tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Val Epoch {epoch + 1}/{args.num_epochs}', leave=False):
-                images, boxes, labels, _ = batch
+                images, boxes, labels, masks, metadata = batch
 
-                if args.only_train_prototypes == False:
-                    # Create negative boxes and add them to the batch
-                    neg_boxes = generate_additional_boxes(images, boxes, args.iou_threshold, args.min_neg_size, args.max_neg_size, args.num_neg)
-                    neg_labels = torch.full((neg_boxes.shape[0], neg_boxes.shape[1]), -2, dtype=torch.long)
-                    boxes = torch.cat([boxes, neg_boxes], dim=1)
-                    labels = torch.cat([labels, neg_labels], dim=1)
+                # Convert map dataset labels classes to the model prototype indices
+                labels = map_labels_to_prototypes(val_dataloader.dataset.get_categories(), model.get_categories(), labels)
 
-                boxes = custom_xywh2xyxy(boxes)
+                if not args.use_segmentation:
+                    if args.only_train_prototypes == False:
+                        # Create negative boxes and add them to the batch
+                        neg_boxes = generate_additional_boxes(images, boxes, args.iou_threshold, args.min_neg_size, args.max_neg_size, args.num_neg)
+                        neg_labels = torch.full((neg_boxes.shape[0], neg_boxes.shape[1]), -2, dtype=torch.long)
+                        boxes = torch.cat([boxes, neg_boxes], dim=1)
+                        labels = torch.cat([labels, neg_labels], dim=1)
 
-                images = images.float().to(device)
-                boxes = boxes.to(device)
-                labels = labels.to(device)
+                    boxes = custom_xywh2xyxy(boxes)
+                    images = images.float().to(device)
+                    boxes = boxes.to(device)
+                    labels = labels.to(device)
 
-                # Forward pass
-                logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels)
+                    # Forward pass
+                    logits = model(prepare_image_for_backbone(images, args.backbone_type), boxes, labels, aggregation=args.aggregation)
 
-                if args.only_train_prototypes == False:
-                    # Assign bg_labels to background examples
-                    bg_logits = torch.argmax(logits[:, :, num_cls:], dim=-1) + num_cls
-                    labels[labels == -2] = bg_logits[labels == -2]
-
+                    if args.only_train_prototypes == False:
+                        # Assign bg_labels to background examples
+                        bg_logits = torch.argmax(logits[:, :, num_cls:], dim=-1) + num_cls
+                        labels[labels == -2] = bg_logits[labels == -2]
+                
+                else:
+                    images = images.float().to(device)
+                    masks = masks.float().to(device)
+                    labels = labels.to(device)
+                    # Forward pass
+                    logits = model(prepare_image_for_backbone(images, args.backbone_type), masks, aggregation=args.aggregation)
+                
                 # Compute loss
                 B, N, C = logits.shape
                 loss = criterion(logits.view(-1, C), labels.view(-1))
 
-                # Calculate predicted labels
+                # Calculate predicted labelsnex
                 predicted_labels = torch.argmax(logits, dim=-1).view(-1)[labels.view(-1)>=0]
 
                 # Count correct predictions
                 total_correct += torch.sum(predicted_labels == labels[labels != -1]).item()
                 total_samples += labels[labels != -1].numel()
+                total_predicted_labels += predicted_labels.cpu().tolist()
+                true_labels += labels[labels != -1].cpu().tolist()
 
                 val_loss += loss.item()
         accuracy = total_correct / total_samples
@@ -191,6 +221,30 @@ def train(args, model, dataloader, val_dataloader, device):
         # Update the learning rate
         scheduler.step()
         print(f"Epoch [{epoch + 1}/{args.num_epochs}] Train Loss: {total_loss / len(dataloader)}  |  Val Loss: {val_loss / len(val_dataloader)} \nVal Accuracy: {accuracy} --> ({total_correct}/{total_samples})")
+
+        # Print precision, recall, and accuracy for each class every 10 epochs
+        if (epoch + 1) % 10 == 0:
+            # Convert the predicted labels and true labels to numpy arrays
+            predicted_labels_np = np.array(total_predicted_labels)
+            true_labels_np = np.array(true_labels)
+
+            # Get the classification report
+            report = classification_report(true_labels_np, predicted_labels_np, output_dict=True, zero_division=1)
+
+            # Print precision, recall, and accuracy for each class
+            for cls in range(num_cls):
+                cls_report = report.get(str(cls), {})  # Use .get() to handle KeyError
+                precision = cls_report.get('precision', -1)  # Default to -1.0 if precision is not available
+                recall = cls_report.get('recall', -1)  # Default to -1.0 if recall is not available
+                f1_score = cls_report.get('f1-score', -1)  # Default to -1.0 if F1-score is not available
+                support = cls_report.get('support', 0)  # Default to 0 if support is not available
+                
+                # Calculate accuracy for the current class
+                correct_indices = (true_labels_np == cls) & (predicted_labels_np == cls)
+                accuracy = correct_indices.sum() / max(1, support)  # Avoid division by zero
+
+                print(f'{model.get_categories()[cls]}: Pr={precision:.4f}, Re={recall:.4f}, F1={f1_score:.4f}, Acc={accuracy:.4f}')
+
 
     return model
 
@@ -227,10 +281,10 @@ def main(args):
     # Initialize dataloader
     embedding_labels = torch.load(args.prototypes_path)['label_names']
     dataset = DINODataset(args.root_dir, args.annotations_file, embedding_labels, augment=True, target_size=args.target_size)
-    dataloader = test_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     val_dataset = DINODataset(args.root_dir, args.val_annotations_file, embedding_labels, augment=False, target_size=args.target_size)
-    val_dataloader = test_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     # Load model
     model, device = prepare_model(args)
@@ -270,5 +324,6 @@ if __name__ == '__main__':
     parser.add_argument('--max_neg_size', type=int, default=150)
     parser.add_argument('--iou_threshold', type=float, default=0.05)
     parser.add_argument('--only_train_prototypes', action='store_true', default=False)
+    parser.add_argument('--use_segmentation', action='store_true', default=False)
     args = parser.parse_args()
     main(args)

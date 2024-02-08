@@ -251,7 +251,12 @@ def build_object_prototypes(args, model, device, patch_size):
     
     # Average the features of all objects in each class
     for cls in class2tokens:
-        class2tokens[cls] = torch.stack(class2tokens[cls]).mean(dim=0)
+        # if tensor is empty set to zeros
+        if len(class2tokens[cls]) == 0:
+            class2tokens[cls] = torch.zeros(D, device=device)
+        else:
+            class2tokens[cls] = torch.stack(class2tokens[cls]).mean(dim=0)
+    class2tokens['Tractor'] = torch.zeros(D, device=device)
     prototypes = F.normalize(torch.stack([class2tokens[c] for c in classes]), dim=1)    # Normalize the feature vectors
 
     # Create dictionary and save

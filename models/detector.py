@@ -2,7 +2,7 @@ import cv2
 import torch
 import torchvision.transforms as T
 from detectron2.structures import ImageList
-from models.classifier import OVDClassifier
+from models.classifier import OVDBoxClassifier, OVDMaskClassifier
 from utils_dir.rpn_utils import get_RPN
 from utils_dir.processing_utils import filter_boxes
 from utils_dir.nms import non_max_suppression
@@ -36,7 +36,7 @@ class OVDDetector(torch.nn.Module):
         else:
             all_prototypes = prototypes['prototypes']
 
-        self.classifier = OVDClassifier(all_prototypes, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
+        self.classifier = OVDBoxClassifier(all_prototypes, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
         self.rpn_cfg, self.rpn = get_RPN(rpn_config, rpn_checkpoint)
     
 

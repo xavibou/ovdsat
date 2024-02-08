@@ -141,7 +141,6 @@ def evaluate(args, model, dataloader, device):
                                         multi_label=True,
                                         isdino=False)
         
-        breakpoint()
         # Save images
         if args.save_dir is not None and args.save_images:
             filepath = os.path.join(args.save_dir, '{}.png'.format(count))
@@ -250,6 +249,8 @@ def get_model(args):
         from models.detector import OVDDetector
         # Load prototypes and background prototypes
         prototypes = torch.load(args.prototypes_path)
+        #prototypes['label_names'].append('Truck-Tractor')
+        #prototypes['prototypes'] = torch.cat ((prototypes['prototypes'], torch.zeros(1, 1024).to(device)))
         bg_prototypes = torch.load(args.bg_prototypes_path) if args.bg_prototypes_path is not None else None
         model = OVDDetector(prototypes, bg_prototypes, scale_factor=args.scale_factor, backbone_type=args.backbone_type, target_size=args.target_size).to(device)
     elif args.model_type == 'yolo':
@@ -266,7 +267,9 @@ def main(args):
 
     # Initialize dataloader
     real_indices = False if args.model_type == 'DINOv2RPN' else True 
-    dataset = DINODataset(args.root_dir, args.annotations_file, torch.load(args.prototypes_path)['label_names'], augment=False, target_size=args.target_size, real_indices=real_indices)
+    label_names = torch.load(args.prototypes_path)['label_names']
+    label_names.append('Truck-Tractor')
+    dataset = DINODataset(args.root_dir, args.annotations_file, label_names, augment=False, target_size=args.target_size, real_indices=real_indices)
     dataloader = test_dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     # Load model
