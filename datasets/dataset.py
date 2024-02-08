@@ -4,81 +4,43 @@ import json
 import torch
 import random
 import numpy as np
-import albumentations as A
-import albumentations.pytorch as Apy
 from torch.utils.data import Dataset
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from torchvision import transforms as T
 
 class DINODataset(Dataset):
-    def __init__(self, root_dir, annotations_file, embedding_classes, augment=True, target_size=(800, 800)):
+    def __init__(self, root_dir, annotations_file, augmentations=None, target_size=(800, 800)):
         self.images_dir = root_dir
-        self.augment = augment
+        self.augmentations = augmentations
         self.target_size = target_size
+        self.augmentations = augmentations
         self.max_boxes = 500
 
+        # Read the annotations file
         with open(annotations_file) as f:
             data = json.load(f)
             n_total = len(data)
         
+        # Extract the images, annotations, and categories
         self.images = data.get('images', [])
         self.annotations = data.get('annotations', [])
         self.categories = data.get('categories', [])
-
-        # Define a PyTorch image transform
-        self.transform = T.Compose([
-            T.ToTensor(),
-            T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
-            ])
         
-        # Define a list of Albumentations augmentations
-        (w, h) = self.target_size
-        if self.augment:
-            # Define a list of transformations
-            self.augs = A.Compose([
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
-                A.RandomRotate90(p=0.5),  # Random 90-degree rotations
-                A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-                A.PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=[0, 0, 0], p=0.5),
-                A.RandomResizedCrop(height=h, width=w, scale=(0.5, 1), p=1),
-            ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids']))
-        else:
-            self.augs = A.Compose([
-                A.Resize(h, w),
-            ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids']))
-    
     def __len__(self):
         return len(self.images)
     
     def get_categories(self):
-        #return {idx: label['name'] for idx, label in enumerate(self.categories)}
         return {
-                0: 'ship',
-                1: 'harbor',
-                2: 'baseballfield',
-                3: 'groundtrackfield',
-                4: 'chimney',
-                5: 'vehicle',
-                6: 'airport',
-                7: 'golffield',
-                8: 'overpass',
-                9: 'bridge',
-                10: 'Expressway-toll-station',
-                11: 'stadium',
-                12: 'tenniscourt',
-                13: 'storagetank',
-                14: 'airplane',
-                15: 'trainstation',
-                16: 'Expressway-Service-area',
-                17: 'windmill',
-                18: 'dam',
-                19: 'basketballcourt'
-            }
+            0: 'ship', 1: 'harbor', 2: 'baseballfield', 3: 'groundtrackfield',
+            4: 'chimney', 5: 'vehicle', 6: 'airport', 7: 'golffield',
+            8: 'overpass', 9: 'bridge', 10: 'Expressway-toll-station',
+            11: 'stadium', 12: 'tenniscourt', 13: 'storagetank', 14: 'airplane',
+            15: 'trainstation', 16: 'Expressway-Service-area', 17: 'windmill',
+            18: 'dam', 19: 'basketballcourt'
+        }
     
     def get_category_number(self):
-        # return number of categories
         return len(self.categories)
 
     def load_image(self, idx: int):
@@ -95,7 +57,6 @@ class DINODataset(Dataset):
         boxes = []
         masks = []
         for annotation in annotations:
-            
             if annotation["bbox"][-1] < 1 or annotation["bbox"][-2] < 1:
                 continue
             
@@ -104,8 +65,6 @@ class DINODataset(Dataset):
             if "segmentation" in annotation and len(annotation["segmentation"]) > 0:
                 masks.append(np.array(annotation["segmentation"]) * 1)
         return labels, boxes, masks
-
-
 
     def __getitem__(self, idx):
         image, path = self.load_image(idx)
@@ -120,15 +79,39 @@ class DINODataset(Dataset):
         }
 
         # Apply augmentations        
-        transformed = self.augs(image=image, bboxes=boxes, category_ids=labels, masks=masks if valid_masks else None)
-        image = transformed['image']
-        boxes = transformed['bboxes']
-        masks = transformed['masks']
-        labels = transformed['category_ids']
+        if self.augmentations:
+            transformed = self.augmentations(
+                image=image, 
+                bboxes=boxes, 
+                category_ids=labels, 
+                masks=masks if valid_masks else None
+            )
+            image = torch.as_tensor(transformed['image'].astype("float32").transpose(2, 0, 1))
+            boxes = transformed['bboxes']
+            masks = transformed['masks']
+            labels = transformed['category_ids']
+        else:
+            image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
 
-        # Pad bounding boxes, masks and labels to a fixed size
-        padded_boxes = torch.tensor(boxes + [(0,0,0,0)] * (self.max_boxes - len(boxes))).float()
-        padded_labels = torch.tensor(labels + [-1] * (self.max_boxes - len(labels))).float()
-        padded_masks = torch.tensor(np.array(masks + [np.zeros(self.target_size) for i in range(self.max_boxes - len(masks))])).float() if valid_masks else []
+        # Pad bounding boxes and labels to a fixed size based on the number of annotations
+        num_boxes = len(boxes)
+        padded_boxes = torch.tensor(boxes).float()
+        padded_labels = torch.tensor(labels).float()
 
-        return torch.as_tensor(image.astype("float32").transpose(2, 0, 1)), padded_boxes, padded_labels, padded_masks, metadata
+        # Pad masks to a fixed size based on the number of annotations
+        if valid_masks:
+            padded_masks = torch.tensor(masks).float()
+        else:
+            padded_masks = []
+
+        # Pad to the maximum number of boxes
+        if num_boxes < self.max_boxes:
+            pad_boxes = torch.zeros((self.max_boxes - num_boxes, 4))
+            pad_labels = torch.full((self.max_boxes - num_boxes,), -1)
+            padded_boxes = torch.cat([padded_boxes, pad_boxes], dim=0)
+            padded_labels = torch.cat([padded_labels, pad_labels], dim=0)
+            if valid_masks:
+                pad_masks = torch.zeros((self.max_boxes - num_boxes, self.target_size[0], self.target_size[1]))
+                padded_masks = torch.cat([padded_masks, pad_masks], dim=0)
+
+        return image, padded_boxes, padded_labels, padded_masks, metadata

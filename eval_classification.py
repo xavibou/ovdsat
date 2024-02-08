@@ -1,18 +1,14 @@
 import os
 import torch
-import random
 import numpy as np
-from torch.utils.data import DataLoader
-from datasets.dataset import DINODataset
-from models.detector import OVDBoxClassifier, OVDMaskClassifier
-import torch.optim as optim
-import torch.nn as nn
-from tqdm import tqdm  # Import tqdm
-from torch.optim.lr_scheduler import StepLR, MultiStepLR
+from tqdm import tqdm
 from argparse import ArgumentParser
+from sklearn.metrics import classification_report
+from models.detector import OVDBoxClassifier, OVDMaskClassifier
 from utils_dir.backbones_utils import prepare_image_for_backbone
 from utils_dir.processing_utils import map_labels_to_prototypes
-from sklearn.metrics import classification_report
+from datasets import init_dataloaders
+
 
 def prepare_model(args):
     # TODO: move to utils or to models __init__.py
@@ -106,9 +102,7 @@ def main(args):
     print('Setting up training...')
 
     # Initialize dataloader
-    embedding_labels = torch.load(args.prototypes_path)['label_names']
-    val_dataset = DINODataset(args.root_dir, args.val_annotations_file, embedding_labels, augment=False, target_size=args.target_size)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    _, val_dataloader = init_dataloaders(args)
 
     # Load model
     model, device = prepare_model(args)

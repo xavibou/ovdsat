@@ -13,7 +13,7 @@ python eval_classification.py \
     --prototypes_path /mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/dior_N10/prototypes_dinov2.pt \
     --backbone_type ${backbone} \
     --target_size 602 602 \
-    --batch_size 48 \
+    --batch_size 16 \
     --num_workers 8 \
     --scale_factor 1 
 
