@@ -2,11 +2,13 @@ import os
 import torch
 import numpy as np
 from tqdm import tqdm
+from tabulate import tabulate
 from argparse import ArgumentParser
 from sklearn.metrics import classification_report
 from models.detector import OVDBoxClassifier, OVDMaskClassifier
 from utils_dir.backbones_utils import prepare_image_for_backbone
 from utils_dir.processing_utils import map_labels_to_prototypes
+from utils_dir.nms import custom_xywh2xyxy
 from datasets import init_dataloaders
 
 
@@ -28,17 +30,8 @@ def prepare_model(args):
     
     return model, device
 
-def custom_xywh2xyxy(x):
-    # TODO: put it in utils as we use it in eval too!!!
-    # Convert nx4 boxes from [xmin, ymin, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
-    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
-    y[..., 2] = x[..., 0] + x[..., 2]  # bottom right x
-    y[..., 3] = x[..., 1] + x[..., 3]  # bottom right y
-    return y
-
 def eval_classification(args, model, val_dataloader, device):
 
-    num_cls = val_dataloader.dataset.get_category_number()
     true_labels = []
     total_predicted_labels = []
 
@@ -59,7 +52,8 @@ def eval_classification(args, model, val_dataloader, device):
             labels = labels.to(device)
 
             # Forward pass
-            logits = model(prepare_image_for_backbone(images, args.backbone_type), loc, labels, normalize=True, aggregation=args.aggregation)
+            with torch.no_grad():
+                logits = model(prepare_image_for_backbone(images, args.backbone_type), loc, labels, normalize=True, aggregation=args.aggregation)
 
             # Calculate predicted labelsnex
             predicted_labels = torch.argmax(logits, dim=-1).view(-1)[labels.view(-1)>=0]
@@ -69,34 +63,14 @@ def eval_classification(args, model, val_dataloader, device):
             true_labels += labels[labels != -1].cpu().tolist()
 
         # Convert the predicted labels and true labels to numpy arrays
-        predicted_labels_np = np.array(total_predicted_labels)
-        true_labels_np = np.array(true_labels)
+        total_predicted_labels = np.array(total_predicted_labels)
+        true_labels = np.array(true_labels)
 
 
         # Get the classification report
-        report = classification_report(true_labels_np, predicted_labels_np, output_dict=True, zero_division=1)
+        report = classification_report(true_labels, total_predicted_labels, output_dict=True, zero_division=1)
 
-        # Print precision, recall, and accuracy for each class
-        for cls in range(num_cls):
-            cls_report = report.get(str(cls), {})  # Use .get() to handle KeyError
-            precision = cls_report.get('precision', -1)  # Default to -1.0 if precision is not available
-            recall = cls_report.get('recall', -1)  # Default to -1.0 if recall is not available
-            f1_score = cls_report.get('f1-score', -1)  # Default to -1.0 if F1-score is not available
-            support = cls_report.get('support', 0)  # Default to 0 if support is not available
-            
-            # Calculate accuracy for the current class
-            correct_indices = (true_labels_np == cls) & (predicted_labels_np == cls)
-            accuracy = correct_indices.sum() / max(1, support)  # Avoid division by zero
-
-            print(f'{model.get_categories()[cls]}: Pr={precision:.4f}, Re={recall:.4f}, F1={f1_score:.4f}, Acc={accuracy:.4f}')
-    
-        # Print the mean results across all classes
-        mean_precision = report.get('macro avg', {}).get('precision', -1)
-        mean_recall = report.get('macro avg', {}).get('recall', -1)
-        mean_f1_score = report.get('macro avg', {}).get('f1-score', -1)
-        mean_accuracy = np.mean(true_labels_np == predicted_labels_np)
-        print(f'Mean results: Pr={mean_precision:.4f}, Re={mean_recall:.4f}, F1={mean_f1_score:.4f}, Acc={mean_accuracy:.4f}')
-
+        return report, total_predicted_labels, true_labels
             
 def main(args):
     print('Setting up training...')
@@ -108,13 +82,48 @@ def main(args):
     model, device = prepare_model(args)
 
     # Perform training
-    eval_classification(args, model, val_dataloader, device)
+    report, pred_labels, true_labels = eval_classification(
+        args, 
+        model, 
+        val_dataloader, 
+        device
+    )
 
+    # Initialize an empty list to store the results
+    results_table = []
+    num_cls = val_dataloader.dataset.get_category_number()
+
+    # Print precision, recall, and accuracy for each class
+    for cls in range(num_cls):
+        cls_report = report.get(str(cls), {})  # Use .get() to handle KeyError
+        precision = cls_report.get('precision', -1)  # Default to -1.0 if precision is not available
+        recall = cls_report.get('recall', -1)  # Default to -1.0 if recall is not available
+        f1_score = cls_report.get('f1-score', -1)  # Default to -1.0 if F1-score is not available
+        support = cls_report.get('support', 0)  # Default to 0 if support is not available
+        
+        # Calculate accuracy for the current class
+        correct_indices = (true_labels == cls) & (pred_labels == cls)
+        accuracy = correct_indices.sum() / max(1, support)  # Avoid division by zero
+        
+        # Append the results to the table
+        results_table.append([model.get_categories()[cls], precision, recall, f1_score, accuracy])
+
+    # Print the results in tabular format
+    print(tabulate(results_table, headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid"))
+
+    # Print the mean results across all classes
+    mean_precision = report.get('macro avg', {}).get('precision', -1)
+    mean_recall = report.get('macro avg', {}).get('recall', -1)
+    mean_f1_score = report.get('macro avg', {}).get('f1-score', -1)
+    mean_accuracy = np.mean(true_labels == pred_labels)
+
+    # Print the mean results in tabular format
+    print(tabulate([["Mean", mean_precision, mean_recall, mean_f1_score, mean_accuracy]], headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid"))
     print('Done!')
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--root_dir', type=str)
+    parser.add_argument('--val_root_dir', type=str)
     parser.add_argument('--val_annotations_file', type=str)
     parser.add_argument('--prototypes_path', type=str, default=None)
     parser.add_argument('--aggregation', type=str, default='mean')

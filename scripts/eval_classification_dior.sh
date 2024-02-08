@@ -7,7 +7,7 @@ dataset=dior
 N=10
 
 python eval_classification.py \
-    --root_dir /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/subsets/val/images \
+    --val_root_dir /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/subsets/val/images \
     --save_dir "run/train/segmentation/learned_prototype_${backbone}_mean_aggr_weighted_cosim" \
     --val_annotations_file /mnt/ddisk/boux/code/data/dior/DIOR/Annotations/subsets/val/val_coco_annotations.json \
     --prototypes_path /mnt/ddisk/boux/code/ovdsat/run/backbone_prototypes/dior_N10/prototypes_dinov2.pt \

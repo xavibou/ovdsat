@@ -19,7 +19,8 @@ class OVDDetector(torch.nn.Module):
                 min_box_size=5,
                 ignore_index=-1,
                 rpn_config='/mnt/ddisk/boux/code/DroneDetectron2/configs/Dota-Base-RCNN-FPN.yaml',
-                rpn_checkpoint='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/model_final.pth'
+                rpn_checkpoint='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/model_final.pth',
+                classification='box'
                 ):
         super().__init__()
         self.scale_factor = scale_factor
@@ -29,6 +30,9 @@ class OVDDetector(torch.nn.Module):
         self.class_names = prototypes['label_names']
         self.num_classes = len(self.class_names)
         self.backbone_type = backbone_type
+        if classification not in ['box', 'mask']:
+            raise ValueError('Invalid classification type. Must be either "box" or "mask"')
+        self.classification = classification
         self.box_norm_factor = 10   # Used to normalize the positive bounding box scores to be in the same range as the class scores
 
         if bg_prototypes is not None:
@@ -36,7 +40,8 @@ class OVDDetector(torch.nn.Module):
         else:
             all_prototypes = prototypes['prototypes']
 
-        self.classifier = OVDBoxClassifier(all_prototypes, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
+        classifier = OVDMaskClassifier if classification == 'mask' else OVDBoxClassifier
+        self.classifier = classifier(all_prototypes, prototypes['label_names'], backbone_type, target_size, scale_factor, min_box_size, ignore_index)
         self.rpn_cfg, self.rpn = get_RPN(rpn_config, rpn_checkpoint)
     
 
@@ -61,7 +66,7 @@ class OVDDetector(torch.nn.Module):
 
         return boxes, box_scores
 
-    def forward(self, images, iou_thr=0.2, conf_thres=0.001, box_conf_threshold=0.01, return_cosim=False, aggregation='mean'):
+    def forward(self, images, iou_thr=0.2, conf_thres=0.001, box_conf_threshold=0.01, aggregation='mean'):
         '''
         Args:
             images (torch.Tensor): Input tensor with shape (B, C, H, W)
@@ -75,10 +80,7 @@ class OVDDetector(torch.nn.Module):
 
         # Classify boxes with classifier
         B, num_proposals, _ = proposals.shape
-        # TODO: Make it to work with B>1
-        preds = self.classifier(prepare_image_for_backbone(images, self.backbone_type), proposals, normalize=True, return_cosim=return_cosim, aggregation=aggregation)
-        if return_cosim:
-            preds, cosim = preds
+        preds = self.classifier(prepare_image_for_backbone(images, self.backbone_type), proposals, normalize=True, aggregation=aggregation)
 
         # Extract class scores and predicted classes
         preds = preds.reshape(B, num_proposals, -1)
@@ -107,8 +109,5 @@ class OVDDetector(torch.nn.Module):
             processed_predictions.append(nms_results[0])
 
         del preds, scores, classes, proposals, box_scores
-
-        if return_cosim:
-            return processed_predictions, cosim
         
         return processed_predictions

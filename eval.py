@@ -8,7 +8,7 @@ from utils_dir.nms import non_max_suppression
 from datasets.dataset import DINODataset
 from utils_dir.metrics import ConfusionMatrix, ap_per_class, box_iou
 from datasets import get_base_new_classes
-
+from utils_dir.nms import custom_xywh2xyxy
 import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -83,20 +83,6 @@ def process_batch(detections, labels, iouv):
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
-
-def custom_xywh2xyxy(x):
-    '''
-    Convert nx4 boxes from [xmin, ymin, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
-
-    Args:
-        x (torch.Tensor or np.array): Input tensor with shape (N, 4)
-    '''
-    # TODO: put it in utils as we use it in train too!!!
-    # Convert nx4 boxes from [xmin, ymin, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
-    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
-    y[..., 2] = x[..., 0] + x[..., 2]  # bottom right x
-    y[..., 3] = x[..., 1] + x[..., 3]  # bottom right y
-    return y
 
 
 def evaluate(args, model, dataloader, device):

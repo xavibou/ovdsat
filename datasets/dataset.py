@@ -15,7 +15,7 @@ class DINODataset(Dataset):
         self.augmentations = augmentations
         self.target_size = target_size
         self.augmentations = augmentations
-        self.max_boxes = 500
+        self.max_boxes =100
 
         # Read the annotations file
         with open(annotations_file) as f:
@@ -31,6 +31,7 @@ class DINODataset(Dataset):
         return len(self.images)
     
     def get_categories(self):
+        return {idx: label['name'] for idx, label in enumerate(self.categories)}
         return {
             0: 'ship', 1: 'harbor', 2: 'baseballfield', 3: 'groundtrackfield',
             4: 'chimney', 5: 'vehicle', 6: 'airport', 7: 'golffield',

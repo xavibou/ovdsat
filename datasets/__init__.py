@@ -43,7 +43,7 @@ def init_dataloaders(args):
         ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids']))
 
         train_dataset = DINODataset(
-            args.root_dir,
+            args.train_root_dir,
             args.annotations_file,
             augmentations=train_augmentations,
             target_size=args.target_size
@@ -63,7 +63,7 @@ def init_dataloaders(args):
         ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids']))
 
         val_dataset = DINODataset(
-            args.root_dir,
+            args.val_root_dir,
             args.val_annotations_file,
             augmentations=val_augmentations,
             target_size=args.target_size
