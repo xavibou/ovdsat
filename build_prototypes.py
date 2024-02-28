@@ -214,15 +214,14 @@ def build_object_prototypes(args, model, device, patch_size):
         if osp.isfile(f) and 'mask' not in f:
             image_file = f
             class_name = osp.basename(osp.dirname(f))
+            mask_file = osp.splitext(f)[0] + '.mask.jpg'
+            if osp.splitext(args.annotations_file)[0] in mask_file:
+                continue
             
             classes = classes + [class_name] if class_name not in classes else classes
-            mask_file = osp.splitext(f)[0] + '.mask.jpg'
             if class_name not in class2images:
-                #breakpoint()
                 class2images[class_name] = []
-            #breakpoint()
             class2images[class_name.strip()].append((image_file, mask_file)) 
-            
             masked_imgs.append(Image.fromarray(cv2.imread(image_file) * (cv2.imread(mask_file) != 0)))
     
     class2tokens = {}
@@ -256,7 +255,7 @@ def build_object_prototypes(args, model, device, patch_size):
             class2tokens[cls] = torch.zeros(D, device=device)
         else:
             class2tokens[cls] = torch.stack(class2tokens[cls]).mean(dim=0)
-    class2tokens['Tractor'] = torch.zeros(D, device=device)
+
     prototypes = F.normalize(torch.stack([class2tokens[c] for c in classes]), dim=1)    # Normalize the feature vectors
 
     # Create dictionary and save

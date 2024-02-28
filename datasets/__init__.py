@@ -1,7 +1,7 @@
 import torch
 import albumentations as A
 from torch.utils.data import DataLoader
-from datasets.dataset import DINODataset
+from datasets.dataset import BoxDataset, OBBDataset
 
 
 def get_base_new_classes(dataset):
@@ -29,7 +29,15 @@ def get_base_new_classes(dataset):
 def init_dataloaders(args):
     train_annotations_file = getattr(args, 'train_annotations_file', None)
     val_annotations_file = getattr(args, 'val_annotations_file', None)
+    annotations = getattr(args, 'annotations', None)
     w, h = args.target_size
+
+    if annotations == 'box':
+        dataClass = BoxDataset
+    elif annotations == 'obb':
+        dataClass = OBBDataset
+    else:
+        raise ValueError(f"Invalid annotations type: {annotations}")
 
     if train_annotations_file is not None:
         # Define training augmentations
@@ -42,9 +50,9 @@ def init_dataloaders(args):
             A.RandomResizedCrop(height=h, width=w, scale=(0.5, 1), p=1),
         ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids']))
 
-        train_dataset = DINODataset(
+        train_dataset = dataClass(
             args.train_root_dir,
-            args.annotations_file,
+            args.train_annotations_file,
             augmentations=train_augmentations,
             target_size=args.target_size
         )
@@ -62,7 +70,7 @@ def init_dataloaders(args):
             A.Resize(h, w),
         ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids']))
 
-        val_dataset = DINODataset(
+        val_dataset = dataClass(
             args.val_root_dir,
             args.val_annotations_file,
             augmentations=val_augmentations,

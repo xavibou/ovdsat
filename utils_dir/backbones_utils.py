@@ -4,7 +4,7 @@ All the logic and functions related extracting robust features with pre-trained 
 '''
 
 import torch
-import open_clip
+#import open_clip
 import torch.nn.functional as F
 from transformers import CLIPModel
 from huggingface_hub import hf_hub_download

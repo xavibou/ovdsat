@@ -1,3 +1,10 @@
+import cv2
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import numpy as np
+from skimage import color
+
+
 import os
 import torch
 import numpy as np
@@ -15,6 +22,76 @@ from models.detector import OVDDetector
 
 from utils_dir.metrics import ConfusionMatrix, ap_per_class, box_iou
 from datasets import get_base_new_classes
+
+def plot_image_with_boxes(image_path, detections, label_names, filepath, target_size):
+    '''
+    Plot image with bounding boxes
+    
+    Args:
+        image_path (str): Path to the image
+        detections (array[N, 6]): x1, y1, x2, y2, conf, class
+        label_names (list): List of label names
+        filepath (str): Path to save the image
+        target_size (tuple): Target size of the image
+    '''
+    # Load the image using OpenCV
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    original_image_size = (1024, 1024)
+    image = cv2.resize(image, original_image_size)
+    # Create figure and axes
+    fig, ax = plt.subplots(1)
+    ax.imshow(image)
+
+    # Define a list of colors for each class
+    colors = ['lightgreen', 'lightgreen', 'darkmagenta', 'cyan', 'magenta', 'cornflowerblue', 'white', 'white', 'cornflowerblue', 'gold', 
+              'brown', 'cyan', 'gray', 'olive', 'teal', 'darkblue', 'darkgreen', 'darkblue', 'darkcyan', 'darkmagenta']
+
+    # Plot bounding boxes with different colors for each class
+    for detection in detections:
+        xmin, ymin, xmax, ymax, conf, class_id = detection
+
+        # Scale the bounding box coordinates to the original image size
+        xmin = int(xmin * original_image_size[0] / target_size[0])
+        ymin = int(ymin * original_image_size[1] / target_size[1])
+        xmax = int(xmax * original_image_size[0] / target_size[0])
+        ymax = int(ymax * original_image_size[1] / target_size[1])
+
+        # Get label name based on class_id
+        label_name = label_names[int(class_id)]
+
+        # Calculate box width and height
+        width = xmax - xmin
+        height = ymax - ymin
+
+        # Create a Rectangle patch with a color corresponding to the class
+        rect = patches.Rectangle((xmin, ymin), width, height, linewidth=1, edgecolor=colors[int(class_id)], facecolor='none')
+        ax.add_patch(rect)
+
+        # Add label name above the bounding box with the same color and background
+        bbox_props = dict(boxstyle="square", fc=colors[int(class_id)], ec="black", lw=0)
+
+        # Adjust text position to start at the same x-coordinate as the bounding box
+        text_x = xmin+9.5
+
+        if colors[int(class_id)] in ['blue', 'darkmagenta']:
+            text_color = 'white'
+        else:
+            text_color = 'black'
+        
+        if label_name == 'figther-aircraft':
+            label_name = 'fighter-aircraft'
+        
+        ax.text(text_x, ymin - 10, label_name, color=text_color, fontsize=10, ha='left', va='bottom', bbox=bbox_props)
+
+    # Save the plot to the specified directory
+    plt.axis('off')
+    save_path = f"{filepath}"
+    plt.savefig(save_path[:-4] + '.pdf', format='pdf', transparent=True)
+    plt.savefig(save_path[:-4] + '.png', transparent=True)
+    plt.close()
+
+
 
 def prepare_model(args):
     '''
@@ -34,8 +111,7 @@ def prepare_model(args):
     prototypes = torch.load(args.prototypes_path)
     bg_prototypes = torch.load(args.bg_prototypes_path) if args.bg_prototypes_path is not None else None
     model = OVDDetector(prototypes, bg_prototypes, scale_factor=args.scale_factor, backbone_type=args.backbone_type, target_size=args.target_size, classification=args.classification).to(device)
-
-    model.eval()
+    #model.eval() 
     return model, device
 
 def process_batch(detections, labels, iouv):
@@ -67,12 +143,19 @@ def eval_detection(args, model, val_dataloader, device):
     iouv = torch.linspace(0.5, 0.95, 10, device=device)  # iou vector for mAP@0.5:0.95
     nc = val_dataloader.dataset.get_category_number()
     names = model.classifier.get_categories()
+    count = 0
 
     stats = []
     with torch.no_grad():
         for i, batch in tqdm(enumerate(val_dataloader), total=len(val_dataloader), leave=False):
-            if args.classification == 'box':
-                images, boxes, labels, _, _ = batch
+
+            #if i not in [141, 34, 514, 61]:
+            if i not in [514]:
+                count += 1
+                continue
+
+            if args.classification != 'mask':
+                images, boxes, labels, _, metadata = batch
                 boxes = boxes.to(device)
             else:
                 images, _, labels, masks, _ = batch
@@ -83,6 +166,11 @@ def eval_detection(args, model, val_dataloader, device):
             labels = labels.to(device)
 
             preds = model(images, iou_thr=args.iou_thr, conf_thres=args.conf_thres, aggregation=args.aggregation)
+            #preds = model(images, iou_thr=args.iou_thr, conf_thres=args.conf_thres, aggregation=args.aggregation, labels=custom_xywh2xyxy(boxes))
+
+            filepath = os.path.join('/mnt/ddisk/boux/code/ovdsat/run/plots/detections_chosen', '{}.png'.format(count))
+            plot_image_with_boxes(metadata['impath'][0], preds[0].cpu(), names, filepath, args.target_size)
+            count += 1
 
             for si, pred in enumerate(preds):
                 keep = labels[si] > -1

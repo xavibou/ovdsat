@@ -123,9 +123,11 @@ class OVDBoxClassifier(OVDBaseClassifier):
                         x_max - x_min < self.min_box_size):
                         count += 1
                         cls[b][i] = self.ignore_index   # If invalid box, assign the label to ignore it while computing the loss
+                        image_similarities.append(torch.zeros(self.num_classes, device=images.device))
+                        continue
                 
                 if aggregation == 'mean':
-                    box_sim = cosine_sim[b, :, y_min:y_max -1, x_min:x_max -1].mean(dim=[1, 2])
+                    box_sim = cosine_sim[b, :, y_min:y_max, x_min:x_max].mean(dim=[1, 2])
                 elif aggregation == 'max':
                     _,n,h,w = cosine_sim.shape
                     box_sim, _ = cosine_sim[b, :, y_min:y_max - 1, x_min:x_max - 1].reshape(n, -1).max(dim=1)
@@ -156,7 +158,7 @@ class OVDMaskClassifier(OVDBaseClassifier):
     def __init__(self, prototypes, class_names, backbone_type='dinov2', target_size=(602,602), scale_factor=2, min_box_size=5, ignore_index=-1):
         super().__init__(prototypes, class_names, backbone_type, target_size, scale_factor, min_box_size, ignore_index)
         
-    def forward(self, images, masks, cls=None, normalize=False, return_cosim=False, aggregation='mean', k=10):
+    def forward(self, images, masks, cls=None, normalize=False, return_cosim=False, aggregation='mean', k=10, batch_size=50):
         '''
         Args:
             images (torch.Tensor): Input tensor with shape (B, C, H, W)
@@ -164,37 +166,62 @@ class OVDMaskClassifier(OVDBaseClassifier):
             cls (torch.Tensor): Class labels with shape (B, max_masks)
             normalize (bool): Whether to normalize the cosine similarity maps
             return_cosim (bool): Whether to return the cosine similarity maps
+            aggregation (str): Aggregation method for combining cosine similarity maps
+            k (int): Number of top-k elements to consider if aggregation is 'topk'
+            batch_size (int): Mini-batch size for processing masks
         '''
 
+        # Initialize lists to store results from each mini-batch
+        batch_mask_sims = []
+
+        # Split masks into mini-batches
+        num_batches = (masks.shape[1] + batch_size - 1) // batch_size
+        mask_batches = torch.split(masks, batch_size, dim=1)
+
+        for mask_batch in mask_batches:
+            # Compute cosine similarity maps for the mini-batch
+            cosine_sim = self.compute_cosine_similarity(images, mask_batch, normalize)
+
+            # Multiply cosine similarity maps with masks element-wise
+            masked_cosine_similarity = cosine_sim.unsqueeze(1) * mask_batch.unsqueeze(2)  # Shape: [B, M, N, H, W]
+
+            # Aggregate masked cosine similarity maps
+            mask_sim = self.aggregate(masked_cosine_similarity, aggregation, k)
+
+            # Append the result of the mini-batch to the list
+            batch_mask_sims.append(mask_sim)
+
+        # Concatenate results from all mini-batches
+        mask_sim = torch.cat(batch_mask_sims, dim=1)
+
+        if return_cosim:
+            return mask_sim, cosine_sim
+
+        return mask_sim
+
+    def compute_cosine_similarity(self, images, masks, normalize):
         scales = []
 
         for scale in self.scale_factor:
             feats = extract_backbone_features(images, self.backbone, self.backbone_type, scale_factor=scale)
             cosine_sim = self.get_cosim_mini_batch(feats, self.embedding, normalize=normalize)
             scales.append(cosine_sim)
+
         # Compute cosine similarity maps
         cosine_sim = torch.stack(scales).mean(dim=0)
+        return cosine_sim
 
-        # Multiply cosine similarity maps with masks element-wise
-        masked_cosine_similarity = cosine_sim.unsqueeze(1) * masks.unsqueeze(2)  # Shape: [B, M, N, H, W]
-
+    def aggregate(self, masked_cosine_similarity, aggregation, k):
         if aggregation == 'mean':
             # Compute average cosine similarity values within masked areas
-            mask_sim = masked_cosine_similarity.sum(dim=(-2, -1)) / (masks.unsqueeze(2).sum(dim=(-1, -2)) + 1e-6)  # Shape: [B, M, N]
+            mask_sim = masked_cosine_similarity.sum(dim=(-2, -1)) / (masked_cosine_similarity.shape[3] * masked_cosine_similarity.shape[4] + 1e-6)  # Shape: [B, M, N]
         elif aggregation == 'max':
-            _, m, n, h, w = masked_cosine_similarity.shape
-            mask_sim = torch.max(masked_cosine_similarity.view(-1, m, n, h * w), dim=-1).values
+            mask_sim, _ = torch.max(masked_cosine_similarity.view(masked_cosine_similarity.shape[0], masked_cosine_similarity.shape[1], masked_cosine_similarity.shape[2], -1), dim=-1)
         elif aggregation == 'topk':
-            _, m, n, h, w = masked_cosine_similarity.shape
-            mask_sim = masked_cosine_similarity.view(-1, m, n, h * w)
-            topk = k if k <= mask_sim.shape[-1] else mask_sim.shape[-1]
-            mask_sim, _ = mask_sim.topk(topk, dim=-1)
+            topk = min(k, masked_cosine_similarity.shape[3] * masked_cosine_similarity.shape[4])
+            mask_sim, _ = torch.topk(masked_cosine_similarity.view(masked_cosine_similarity.shape[0], masked_cosine_similarity.shape[1], masked_cosine_similarity.shape[2], -1), topk, dim=-1)
             mask_sim = mask_sim.mean(dim=-1)
         else:
             raise ValueError('Invalid aggregation method')
 
-        if return_cosim:
-            return mask_sim, cosine_sim
-
-        # Flatten box_logits and target_labels
         return mask_sim

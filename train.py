@@ -3,7 +3,6 @@ import torch
 import random
 import numpy as np
 from torch.utils.data import DataLoader
-from datasets.dataset import DINODataset
 from models.detector import OVDBoxClassifier, OVDMaskClassifier
 import torch.optim as optim
 import torch.nn as nn
@@ -13,6 +12,7 @@ from argparse import ArgumentParser
 from utils_dir.backbones_utils import prepare_image_for_backbone
 from utils_dir.processing_utils import map_labels_to_prototypes
 from sklearn.metrics import classification_report
+from datasets import init_dataloaders
 
 def prepare_model(args):
     # TODO: move to utils or to models __init__.py
@@ -31,7 +31,7 @@ def prepare_model(args):
         all_prototypes = prototypes['prototypes']
 
     # Initialize model and move it to device
-    modelClass = OVDMaskClassifier if args.use_segmentation else OVDBoxClassifier
+    modelClass = OVDBoxClassifier if args.annotations == 'box' else OVDMaskClassifier
     model = modelClass(all_prototypes, prototypes['label_names'], backbone_type=args.backbone_type, target_size=args.target_size, scale_factor=args.scale_factor).to(device)
     model.train()
     
@@ -101,6 +101,8 @@ def train(args, model, dataloader, val_dataloader, device):
     criterion = nn.CrossEntropyLoss(ignore_index=-1)
     num_cls = dataloader.dataset.get_category_number()
 
+    use_masks = False if args.annotations == 'box' else True
+
     # Training loop
     for epoch in range(args.num_epochs):
         total_loss = 0.0
@@ -110,7 +112,8 @@ def train(args, model, dataloader, val_dataloader, device):
 
         # Use tqdm to create a progress bar for the dataloader
         for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc=f'Epoch {epoch + 1}/{args.num_epochs}', leave=False):
-            images, boxes, labels, masks, _ = batch
+            images, boxes, labels, _ = batch
+
 
             # Convert map dataset labels classes to the model prototype indices
             labels = map_labels_to_prototypes(dataloader.dataset.get_categories(), model.get_categories(), labels)
@@ -118,7 +121,7 @@ def train(args, model, dataloader, val_dataloader, device):
             if len(labels[labels != -1]) == 0:
                 continue   # skip if no boxes in the image
 
-            if not args.use_segmentation:
+            if not use_masks:
                 if args.only_train_prototypes == False:
                     # Create negative boxes and add them to the batch
                     neg_boxes = generate_additional_boxes(images, boxes, args.iou_threshold, args.min_neg_size, args.max_neg_size, args.num_neg)
@@ -141,7 +144,7 @@ def train(args, model, dataloader, val_dataloader, device):
             
             else:
                 images = images.float().to(device)
-                masks = masks.float().to(device)
+                masks = boxes.float().to(device)
                 labels = labels.to(device)
                 # Forward pass
                 logits = model(prepare_image_for_backbone(images, args.backbone_type), masks, labels, aggregation=args.aggregation)
@@ -169,12 +172,12 @@ def train(args, model, dataloader, val_dataloader, device):
             true_labels = []
             total_predicted_labels = []
             for i, batch in tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Val Epoch {epoch + 1}/{args.num_epochs}', leave=False):
-                images, boxes, labels, masks, metadata = batch
+                images, boxes, labels, _ = batch
 
                 # Convert map dataset labels classes to the model prototype indices
                 labels = map_labels_to_prototypes(val_dataloader.dataset.get_categories(), model.get_categories(), labels)
 
-                if not args.use_segmentation:
+                if not use_masks:
                     if args.only_train_prototypes == False:
                         # Create negative boxes and add them to the batch
                         neg_boxes = generate_additional_boxes(images, boxes, args.iou_threshold, args.min_neg_size, args.max_neg_size, args.num_neg)
@@ -197,7 +200,7 @@ def train(args, model, dataloader, val_dataloader, device):
                 
                 else:
                     images = images.float().to(device)
-                    masks = masks.float().to(device)
+                    masks = boxes.float().to(device)
                     labels = labels.to(device)
                     # Forward pass
                     logits = model(prepare_image_for_backbone(images, args.backbone_type), masks, aggregation=args.aggregation)
@@ -205,6 +208,11 @@ def train(args, model, dataloader, val_dataloader, device):
                 # Compute loss
                 B, N, C = logits.shape
                 loss = criterion(logits.view(-1, C), labels.view(-1))
+
+                # if loss contains nans continue
+                has_nan = torch.isnan(loss).any().item()
+                if has_nan:
+                    continue
 
                 # Calculate predicted labelsnex
                 predicted_labels = torch.argmax(logits, dim=-1).view(-1)[labels.view(-1)>=0]
@@ -278,36 +286,33 @@ def save_results(learned_embedding, class_names, save_dir):
 def main(args):
     print('Setting up training...')
 
-    # Initialize dataloader
-    embedding_labels = torch.load(args.prototypes_path)['label_names']
-    dataset = DINODataset(args.root_dir, args.annotations_file, embedding_labels, augment=True, target_size=args.target_size)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
-    val_dataset = DINODataset(args.root_dir, args.val_annotations_file, embedding_labels, augment=False, target_size=args.target_size)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
-
+    # Initialize dataloaders
+    train_dataloader, val_dataloader = init_dataloaders(args)
+    
     # Load model
     model, device = prepare_model(args)
 
     # Perform training
-    model = train(args, model, dataloader, val_dataloader, device)
+    model = train(args, model, train_dataloader, val_dataloader, device)
 
     # Save model
     if args.save_dir is not None:
         print("Training finished. Saving model...")
-        save_results(model.embedding.detach().cpu(), embedding_labels, args.save_dir)
+        save_results(model.embedding.detach().cpu(), model.class_names, args.save_dir)
 
     print('Done!')
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--root_dir', type=str)
-    parser.add_argument('--annotations_file', type=str)
+    parser.add_argument('--train_root_dir', type=str)
+    parser.add_argument('--val_root_dir', type=str)
+    parser.add_argument('--train_annotations_file', type=str)
     parser.add_argument('--val_annotations_file', type=str)
     parser.add_argument('--prototypes_path', type=str, default=None)
     parser.add_argument('--bg_prototypes_path', type=str, default=None)
     parser.add_argument('--aggregation', type=str, default='mean')
     parser.add_argument('--save_dir', type=str, default=None)
+    parser.add_argument('--annotations', type=str, default='box')
     parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--target_size', nargs=2, type=int, metavar=('width', 'height'), default=(560, 560))
     parser.add_argument('--batch_size', type=int, default=1)
@@ -324,6 +329,5 @@ if __name__ == '__main__':
     parser.add_argument('--max_neg_size', type=int, default=150)
     parser.add_argument('--iou_threshold', type=float, default=0.05)
     parser.add_argument('--only_train_prototypes', action='store_true', default=False)
-    parser.add_argument('--use_segmentation', action='store_true', default=False)
     args = parser.parse_args()
     main(args)

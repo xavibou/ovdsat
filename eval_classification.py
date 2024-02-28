@@ -24,7 +24,7 @@ def prepare_model(args):
     prototypes = torch.load(args.prototypes_path)
 
     # Initialize model and move it to device
-    modelClass = OVDMaskClassifier if args.use_segmentation else OVDBoxClassifier
+    modelClass = OVDBoxClassifier if args.annotations == 'box' else OVDMaskClassifier
     model = modelClass(prototypes['prototypes'], prototypes['label_names'], backbone_type=args.backbone_type, target_size=args.target_size, scale_factor=args.scale_factor).to(device)
     model.train()
     
@@ -34,17 +34,17 @@ def eval_classification(args, model, val_dataloader, device):
 
     true_labels = []
     total_predicted_labels = []
+    use_masks = False if args.annotations == 'box' else True
 
     with torch.no_grad():
         for i, batch in tqdm(enumerate(val_dataloader), total=len(val_dataloader), leave=False):
+            images, boxes, labels, _ = batch
 
             # Location signal is either the boxes or the masks
-            if not args.use_segmentation:
-                images, boxes, labels, _, metadata = batch
+            if not use_masks:
                 loc = custom_xywh2xyxy(boxes).to(device)
             else:
-                images, _, labels, masks, metadata = batch
-                loc = masks.float().to(device)
+                loc = boxes.float().to(device)
             
             # Convert map dataset labels classes to the model prototype indices
             labels = map_labels_to_prototypes(val_dataloader.dataset.get_categories(), model.get_categories(), labels)
@@ -109,7 +109,8 @@ def main(args):
         results_table.append([model.get_categories()[cls], precision, recall, f1_score, accuracy])
 
     # Print the results in tabular format
-    print(tabulate(results_table, headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid"))
+    result_str = tabulate(results_table, headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid")
+    print(result_str)
 
     # Print the mean results across all classes
     mean_precision = report.get('macro avg', {}).get('precision', -1)
@@ -118,8 +119,23 @@ def main(args):
     mean_accuracy = np.mean(true_labels == pred_labels)
 
     # Print the mean results in tabular format
-    print(tabulate([["Mean", mean_precision, mean_recall, mean_f1_score, mean_accuracy]], headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid"))
+    mean_result_str = tabulate([["Mean", mean_precision, mean_recall, mean_f1_score, mean_accuracy]], headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid")
+    print(mean_result_str)
+
+    # Write the results to a text file
+    if args.save_dir:
+        os.makedirs(args.save_dir, exist_ok=True)
+        filepath = os.path.join(args.save_dir, "classification_results.txt")
+        with open(filepath, "w") as file:
+            file.write("Individual Class Results:\n")
+            file.write(result_str)
+            file.write("\n\n")
+            file.write("Mean Results:\n")
+            file.write(mean_result_str)
+
+        print('Results written to "classification_results.txt"')
     print('Done!')
+    
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -128,11 +144,11 @@ if __name__ == '__main__':
     parser.add_argument('--prototypes_path', type=str, default=None)
     parser.add_argument('--aggregation', type=str, default='mean')
     parser.add_argument('--save_dir', type=str, default=None)
+    parser.add_argument('--annotations', type=str, default='box')
     parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--target_size', nargs=2, type=int, metavar=('width', 'height'), default=(560, 560))
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--scale_factor', nargs='+', type=int, default=2)
-    parser.add_argument('--use_segmentation', action='store_true', default=False)
     args = parser.parse_args()
     main(args)

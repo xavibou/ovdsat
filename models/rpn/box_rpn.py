@@ -1,34 +1,5 @@
-'''
-## ----------------------- For Centernet RPN trained on natural images ----------------------- ##
-from detectron2.config import get_cfg
-from models.centernet.config import add_centernet_config
-from detectron2.engine.defaults import DefaultPredictor
-
-
-def setup_cfg(yaml_path, checkpoint_path):
-    # load config from file and command-line arguments
-    weights = ['MODEL.WEIGHTS', '/mnt/ddisk/boux/code/dino_simple_detector/CenterNet2/models/CenterNet2_R50_1x.pth']
-    cfg = get_cfg()
-    add_centernet_config(cfg)
-    cfg.merge_from_file(yaml_path)
-    cfg.merge_from_list(weights)
-    # Set score_threshold for builtin models
-    cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0
-    if cfg.MODEL.META_ARCHITECTURE in ['ProposalNetwork', 'CenterNetDetector']:
-        cfg.MODEL.CENTERNET.INFERENCE_TH = 0
-        cfg.MODEL.CENTERNET.NMS_TH = cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST
-    cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = 0
-    cfg.freeze()
-    return cfg
-
-def get_RPN(yaml_path, checkpoint_path):
-    cfg = setup_cfg(yaml_path, checkpoint_path)
-    predictor = DefaultPredictor(cfg)
-
-    # Initialize the Faster R-CNN model
-    return cfg, predictor
-'''
+import torch
+from detectron2.structures import ImageList
 
 from detectron2.config import get_cfg
 from detectron2.engine.defaults import DefaultPredictor
@@ -82,10 +53,47 @@ def setup(config_file):
     cfg.freeze()
     return cfg
 
-def get_box_RPN(yaml_path, checkpoint_path):
+def get_box_RPN(config_file, checkpoint_file):
     Trainer = DefaultTrainer
-    cfg = setup(yaml_path)
+    cfg = setup(config_file)
     model = Trainer.build_model(cfg)
-    DetectionCheckpointer(model).resume_or_load(checkpoint_path, resume=False)
+    DetectionCheckpointer(model).resume_or_load(checkpoint_file, resume=False)
     model.eval()
     return cfg, model
+
+class BoxRPN(torch.nn.Module):
+
+    def __init__(self,
+                config_file='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/config.yaml',
+                checkpoint_file='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/model_final.pth'
+                ):
+        super().__init__()
+        self.config_file = config_file
+        self.checkpoint_file = checkpoint_file
+        self.box_norm_factor = 10   # Used to normalize the positive bounding box scores to be in the same range as the class scores
+        
+        self.cfg, self.model = get_box_RPN(self.config_file, self.checkpoint_file)
+
+    def forward(self, images):
+        '''
+        Generate box proposals using the model's RPN.
+
+        Args:
+            images (torch.Tensor): Input tensor with shape (B, C, H, W)
+        '''
+        images = [(x - self.model.pixel_mean) / self.model.pixel_std for x in images]
+        images = ImageList.from_tensors(
+            images,
+            self.model.backbone.size_divisibility,
+            padding_constraints=self.model.backbone.padding_constraints,
+        )
+        features = self.model.backbone(images.tensor)
+
+        with torch.no_grad():
+            proposals, _ = self.model.proposal_generator(images, features, None)
+        
+        boxes = torch.stack([p.proposal_boxes.tensor for p in proposals])
+        box_scores = torch.stack([p.objectness_logits / self.box_norm_factor for p in proposals])
+
+        return boxes, box_scores
+
