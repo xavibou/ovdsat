@@ -40,11 +40,13 @@ Detect your desired objects in optical remote sensing data via a few simple step
 
 ### Requirements:
 Create a conda environment and install the required packages as follows. You might need to adapt versions of packages depending on your hardware:
+```Shell
   conda create -n ovdsat python=3.9 -y
   conda activate ovdsat
   pip install torch==1.13.0+cu116 torchvision==0.14.0+cu116 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116
   python -m pip install 'git+https://github.com/facebookresearch/detectron2.git'
   pip install opencv-python albumentations transformers
+```
 
 ### Data preparation
 To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories into the project directory.
