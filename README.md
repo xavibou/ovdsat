@@ -73,7 +73,7 @@ bash scripts/eval_detection.sh
 ### Citation
 If you found our work useful, please cite it as follows:
 ```bibtex
-@article{Author:Year,
+@article{Bou:2024,
   title={Exploring Robust Features for Few-Shot Object Detection in Satellite Imagery},
   author={Bou, Xavier and Facciolo, Gabriele and von Gioi, Rafael Grompone and Morel, Jean-Michel and Ehret, Thibaud},
   journal={arXiv preprint arXiv:2403.05381},
