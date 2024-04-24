@@ -54,20 +54,20 @@ To set up the data and pre-trained weights, download the contents of the followi
 ### Create prototypes
 To generate the class-reference and background prototypes using [DINOv2](https://github.com/facebookresearch/dinov2) features, run the following command:
 ```Shell
-bash scripts/create_prototypes_simd.sh
+bash scripts/init_prototypes.sh
 ```
-If you are running other data or the files/paths differ from ours, you can adapt the contents of the bash file to your own structure.
+**Important:** Add the path to your data and the in the DATA_DIR variable in the bash files. You can adapt the used datasets, value of N as well. If you are running other data or the files/paths differ from ours, you can adapt the contents of the bash file to your own structure.
 
 ### Fine-tune prototypes
 Train the pre-initialised class-reference prototypes on the available data:
 ```Shell
-bash scripts/train_simd.sh
+bash scripts/train_prototypes_bbox.sh
 ```
 
 ### Evaluate
 Evaluate the learned prototypes on unsen data:
 ```Shell
-bash scripts/eval_simd.sh
+bash scripts/eval_detection.sh
 ```
 
 ### Citation
