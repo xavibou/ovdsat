@@ -4,7 +4,7 @@ DATA_DIR=/mnt/ddisk/boux/code/data
 backbone=dinov2
 annotations=box
 
-for dataset in simd dior
+for dataset in simd
 do
     for N in 5 10 30
     do

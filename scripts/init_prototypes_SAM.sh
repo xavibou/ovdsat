@@ -1,7 +1,7 @@
 #!/bin/bash
 
 backbone=dinov2
-for dataset in simd dior
+for dataset in simd
 do
     if [ $dataset == "simd" ]
     then

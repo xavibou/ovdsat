@@ -83,4 +83,4 @@ If you found our work useful, please cite it as follows:
 
 ### License and Acknowledgement
 
-This project is released under the GPL-3.0 license.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) - see the [LICENSE](LICENSE) file for details.

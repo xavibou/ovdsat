@@ -4,14 +4,14 @@ DATA_DIR=/mnt/ddisk/boux/code/data
 INIT_PROTOTYPES_PATH=run/segmentation_init_prototypes
 backbone=dinov2
 
-for dataset in simd dior
+for dataset in simd
 do
     for N in 5 10 30
     do
         echo "Training mask classifier model for the ${dataset} dataset using ${backbone} features with N=${N}"
         python train.py \
             --train_root_dir  ${DATA_DIR}/${dataset}/train \
-            --val_root_dir  ${DATA_DIR}/${dataset}/train \
+            --val_root_dir  ${DATA_DIR}/${dataset}/val \
             --save_dir "run/train/segmentation/${dataset}_N${N}" \
             --train_annotations_file ${DATA_DIR}/${dataset}/train_coco_subset_N${N}_seg.json \
             --val_annotations_file ${DATA_DIR}/${dataset}/train_coco_finetune_val_seg.json \
