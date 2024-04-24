@@ -1,4 +1,4 @@
-# Detecting Objects in Remote Sensing with Only a Few Examples
+# Exploring Robust Features for Few-Shot Object Detection in Satellite Imagery
 
 [Xavier Bou](https://www.linkedin.com/in/xavier-bou-hernandez-39b517134/), [Rafael Grompone](https://scholar.google.fr/citations?user=GLovf4UAAAAJ&hl=en), [Thibaud Ehret](https://tehret.github.io), [Gabriele Facciolo](http://gfacciol.github.io/), [Jean-Michel Morel](https://sites.google.com/site/jeanmichelmorelcmlaenscachan/)
 
