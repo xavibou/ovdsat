@@ -38,6 +38,14 @@ Detect your desired objects in optical remote sensing data via a few simple step
 1. Fine-tune class-reference embeddings
 1. Detect objects via RPN and the learned embeddings!
 
+### Requirements:
+Install the following packa
+    torch
+    detectron2
+    opencv-python
+    huggingface-hub
+    albumentations
+
 ### Data preparation
 To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories into the project directory.
 
@@ -61,6 +69,15 @@ bash scripts/eval_simd.sh
 ```
 
 ### Citation
+If you found our work useful, please cite it as follows:
+```bibtex
+@article{Author:Year,
+  title={Exploring Robust Features for Few-Shot Object Detection in Satellite Imagery},
+  author={Bou, Xavier and Facciolo, Gabriele and von Gioi, Rafael Grompone and Morel, Jean-Michel and Ehret, Thibaud},
+  journal={arXiv preprint arXiv:2403.05381},
+  year={2024}
+}
+
 
 ### License and Acknowledgement
 
