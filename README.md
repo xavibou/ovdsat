@@ -10,11 +10,13 @@ Centre Borelli, ENS Paris-Saclay
 [![Google Drive](https://img.shields.io/badge/files-Google_Drive-blueviolet)](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing)
 [![Project](https://img.shields.io/badge/project%20web-github.io-red)]()
 
-This repository is the official PyTorch implementation of [NAME OF THE ARTICLE].
+This repository is the official implementation of the paper [Exploring Robust Features for Few-Shot Object Detection in Satellite Imagery](https://arxiv.org/abs/2403.05381).
 
-The goal of this paper is to perform object detection in satellite imagery with only a few examples, thus enabling users to specify any object class with minimal annotations. To this end, we explore recent methods and ideas from open-vocabulary detection for the remote sensing domain. We develop a few-shot object detector based on a traditional two-stage architecture, where the classification block is replaced by a prototype-based classifier. A large-scale pre-trained model is used to build class-reference embeddings or prototypes, which are compared to bounding box proposal contents for label prediction. In addition, we propose  fine-tuning class-reference embeddings on available training images to boost performance and learn the difference amongst similar classes, such as aircraft types. We perform extensive evaluations on multiple remote sensing datasets containing challenging and rare objects. Furthermore, we study the performance of both visual and image-text features, namely DINOv2 and CLIP, including two CLIP models specifically tailored for remote sensing applications. Our results indicate that [... extend when it's clear after all experiments].
+🎉 **Our Paper Has Been Accepted to EarthVision Workshop at CVPR24!** 🌍
 
-![Alt text](./assets/teaser_plot_v1.png)
+The goal of this paper is to perform object detection in satellite imagery with only a few examples, thus enabling users to specify any object class with minimal annotation. To this end, we explore recent methods and ideas from open-vocabulary detection for the remote sensing domain. We develop a few-shot object detector based on a traditional two-stage architecture, where the classification block is replaced by a prototype-based classifier. A large-scale pre-trained model is used to build class-reference embeddings or prototypes, which are compared to region proposal contents for label prediction. In addition, we propose to fine-tune prototypes on available training images to boost performance and learn differences between similar classes, such as aircraft types. We perform extensive evaluations on two remote sensing datasets containing challenging and rare objects. Moreover, we study the performance of both visual and image-text features, namely DINOv2 and CLIP, including two CLIP models specifically tailored for remote sensing applications. Results indicate that visual features are largely superior to vision-language models, as the latter lack the necessary domain-specific vocabulary. Lastly, the developed detector outperforms fully supervised and few-shot methods evaluated on the SIMD and DIOR datasets, despite minimal training parameters.
+
+![Alt text](./assets/teaser_plot_v3.png)
 
 ## Contents
 
@@ -27,7 +29,7 @@ The goal of this paper is to perform object detection in satellite imagery with 
 1. [License and Acknowledgement](#License-and-Acknowledgement)
 
 ### Overview
-![Alt text](./assets/detector_inference.png)
+![Alt text](./assets/detector_inference_v1.png)
 
 Detect your desired objects in optical remote sensing data via a few simple steps:
 1. Prepare the data with N labelled examples per category (we provide examples for N={5, 10, 30})

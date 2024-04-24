@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATA_DIR=/mnt/ddisk/boux/code/data
-backbone=dinov2
+backbone=dinov2-reg
 for dataset in simd dior
 do
     for N in 5 10 30

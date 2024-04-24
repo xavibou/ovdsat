@@ -16,8 +16,8 @@ do
             --annotations ${annotations} \
             --backbone_type ${backbone} \
             --target_size 602 602 \
-            --batch_size 16 \
-            --num_workers 8 \
+            --batch_size 8 \
+            --num_workers 0 \
             --scale_factor 1 
     done
 done

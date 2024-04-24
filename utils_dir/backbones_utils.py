@@ -26,7 +26,7 @@ def load_backbone(backbone_type):
     if backbone_type == 'dinov2':
         model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14')
     elif backbone_type == 'dinov2-reg':
-        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14_reg')
+        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14_reg', force_reload=True)
     elif backbone_type == 'clip-32':
         model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").vision_model
     elif backbone_type == 'clip-14':

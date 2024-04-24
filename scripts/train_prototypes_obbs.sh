@@ -22,8 +22,8 @@ do
             --lr 2e-4 \
             --target_size 602 602 \
             --batch_size 4 \
-            --num_neg 0 \
-            --num_workers 8 \
+            --num_neg 8 \
+            --num_workers 1 \
             --iou_thr 0.1 \
             --conf_thres 0.2 \
             --scale_factor 1 \

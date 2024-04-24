@@ -2,6 +2,7 @@
 
 DATA_DIR=/mnt/ddisk/boux/code/data
 backbone=dinov2
+annotations=box
 
 for dataset in simd dior
 do
@@ -12,9 +13,10 @@ do
             --save_dir "run/eval/classification/segmentation/${dataset}_N${N}" \
             --val_annotations_file ${DATA_DIR}/${dataset}/val_coco.json \
             --prototypes_path run/train/segmentation/${dataset}_N${N}/prototypes.pth \
+            --annotations ${annotations} \
             --backbone_type ${backbone} \
             --target_size 602 602 \
-            --batch_size 32 \
+            --batch_size 16 \
             --num_workers 8 \
             --scale_factor 1 
     done

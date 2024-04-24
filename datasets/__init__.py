@@ -74,14 +74,16 @@ def init_dataloaders(args):
             args.val_root_dir,
             args.val_annotations_file,
             augmentations=val_augmentations,
-            target_size=args.target_size
+            target_size=args.target_size,
         )
+        val_dataset.dynamic_size = True if args.batch_size == 1 else False
         val_dataloader = DataLoader(
             val_dataset, 
             batch_size=args.batch_size, 
             shuffle=False, 
             num_workers=args.num_workers
         )
+
     else:
         val_dataloader = None
 

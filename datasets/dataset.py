@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from torchvision import transforms as T
+rotate_oriented_boxes_batched
 
 class BaseDataset(Dataset):
     def __init__(self, root_dir, annotations_file, augmentations=None, target_size=(800, 800)):
@@ -123,7 +124,7 @@ class BoxDataset(BaseDataset):
 
     def __init__(self, root_dir, annotations_file, augmentations=None, target_size=(800, 800)):
         super().__init__(root_dir, annotations_file, augmentations, target_size)
-        self.max_boxes = 250
+        self.max_boxes = 500
     
     def load_target(self, idx: int):
         image_id = self.images[idx]['id']
@@ -186,7 +187,8 @@ class OBBDataset(BaseDataset):
 
     def __init__(self, root_dir, annotations_file, augmentations=None, target_size=(800, 800)):
         super().__init__(root_dir, annotations_file, augmentations, target_size)
-        self.max_masks = 250
+        self.max_masks = 500
+        self.dynamic_size = False
 
     def generate_masks_from_obbs(self, obb, image_size):
         # Create a blank image and draw the box on it
@@ -244,7 +246,10 @@ class OBBDataset(BaseDataset):
         num_masks = len(masks)
         padded_labels = torch.tensor(labels).float()
         padded_masks = torch.tensor(masks).float()
-
+        
+        if self.dynamic_size:
+            return image, padded_masks, padded_labels, metadata
+            
 
         # Pad to the maximum number of masks
         if num_masks < self.max_masks:

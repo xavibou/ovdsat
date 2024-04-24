@@ -4,12 +4,14 @@ import numpy as np
 from tqdm import tqdm
 from tabulate import tabulate
 from argparse import ArgumentParser
-from sklearn.metrics import classification_report
-from models.detector import OVDBoxClassifier, OVDMaskClassifier
+from sklearn.metrics import classification_report, confusion_matrix
 from utils_dir.backbones_utils import prepare_image_for_backbone
+from models.detector import OVDBoxClassifier, OVDMaskClassifier
 from utils_dir.processing_utils import map_labels_to_prototypes
 from utils_dir.nms import custom_xywh2xyxy
 from datasets import init_dataloaders
+from utils_dir.visualization_utils import plot_classification_confusion_matrix
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 
 def prepare_model(args):
@@ -66,11 +68,10 @@ def eval_classification(args, model, val_dataloader, device):
         total_predicted_labels = np.array(total_predicted_labels)
         true_labels = np.array(true_labels)
 
+        # Compute the confusion matrix
+        conf_matrix = confusion_matrix(true_labels, total_predicted_labels)
 
-        # Get the classification report
-        report = classification_report(true_labels, total_predicted_labels, output_dict=True, zero_division=1)
-
-        return report, total_predicted_labels, true_labels
+        return conf_matrix, total_predicted_labels, true_labels
             
 def main(args):
     print('Setting up training...')
@@ -82,7 +83,7 @@ def main(args):
     model, device = prepare_model(args)
 
     # Perform training
-    report, pred_labels, true_labels = eval_classification(
+    conf_matrix, pred_labels, true_labels = eval_classification(
         args, 
         model, 
         val_dataloader, 
@@ -93,34 +94,36 @@ def main(args):
     results_table = []
     num_cls = val_dataloader.dataset.get_category_number()
 
+    class_precision = precision_score(true_labels, pred_labels, average=None)
+    class_recall = recall_score(true_labels, pred_labels, average=None)
+    class_f1_score = 2 * (class_precision * class_recall) / (class_precision + class_recall + 1e-6)
+    class_accuracy = []
+    categories = model.get_categories()
     # Print precision, recall, and accuracy for each class
+
     for cls in range(num_cls):
-        cls_report = report.get(str(cls), {})  # Use .get() to handle KeyError
-        precision = cls_report.get('precision', -1)  # Default to -1.0 if precision is not available
-        recall = cls_report.get('recall', -1)  # Default to -1.0 if recall is not available
-        f1_score = cls_report.get('f1-score', -1)  # Default to -1.0 if F1-score is not available
-        support = cls_report.get('support', 0)  # Default to 0 if support is not available
         
         # Calculate accuracy for the current class
-        correct_indices = (true_labels == cls) & (pred_labels == cls)
-        accuracy = correct_indices.sum() / max(1, support)  # Avoid division by zero
-        
+        accuracy = np.sum((true_labels == cls) & (pred_labels == cls)) / np.sum(true_labels == cls)
+        class_accuracy.append(accuracy)
+
         # Append the results to the table
-        results_table.append([model.get_categories()[cls], precision, recall, f1_score, accuracy])
+        results_table.append([categories[cls], class_precision[cls], class_recall[cls], class_f1_score[cls], accuracy])
 
     # Print the results in tabular format
     result_str = tabulate(results_table, headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid")
     print(result_str)
 
     # Print the mean results across all classes
-    mean_precision = report.get('macro avg', {}).get('precision', -1)
-    mean_recall = report.get('macro avg', {}).get('recall', -1)
-    mean_f1_score = report.get('macro avg', {}).get('f1-score', -1)
-    mean_accuracy = np.mean(true_labels == pred_labels)
+    mean_precision = np.mean(class_precision)
+    mean_recall = np.mean(class_recall)
+    mean_f1_score = np.mean(class_f1_score)
+    mean_accuracy = np.mean(class_accuracy)
 
     # Print the mean results in tabular format
     mean_result_str = tabulate([["Mean", mean_precision, mean_recall, mean_f1_score, mean_accuracy]], headers=["Class", "Precision", "Recall", "F1-score", "Accuracy"], tablefmt="grid")
     print(mean_result_str)
+
 
     # Write the results to a text file
     if args.save_dir:
@@ -132,6 +135,10 @@ def main(args):
             file.write("\n\n")
             file.write("Mean Results:\n")
             file.write(mean_result_str)
+
+        # Save the confusion matrix
+        names = [categories[key] for key in sorted(categories.keys())]
+        plot_classification_confusion_matrix(conf_matrix, num_cls, save_dir=args.save_dir, names=names)
 
         print('Results written to "classification_results.txt"')
     print('Done!')
