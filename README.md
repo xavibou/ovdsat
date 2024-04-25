@@ -48,7 +48,7 @@ Create a conda environment and install the required packages as follows. You mig
   pip install opencv-python albumentations transformers
 ```
 
-### Data preparation
+### Data preparation and weights
 To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories into the project directory. The data path should follow the structure below for each dataset, e.g. simd, dior or your own:
 ```plaintext
 data/
@@ -74,6 +74,10 @@ data/
 │   └── ...
 ...
 ```
+
+#### Weights
+
+We pre-trained a FasterRCNN model on DOTA for the RPN using the code from [DroneDetectron2](https://github.com/akhilpm/DroneDetectron2). If you plan to use any of the Remote Sensing CLIP models tested in the paper, download the pre-trained weights ([RemoteCLIP](https://huggingface.co/chendelong/RemoteCLIP/tree/main) and [GeoRSClip](https://huggingface.co/Zilun/GeoRSCLIP)) and add them to the weights/ directory. 
 
 ### Create prototypes
 To generate the class-reference and background prototypes using [DINOv2](https://github.com/facebookresearch/dinov2) features, run the following command:
