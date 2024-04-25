@@ -49,7 +49,30 @@ Create a conda environment and install the required packages as follows. You mig
 ```
 
 ### Data preparation
-To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories into the project directory.
+To set up the data and pre-trained weights, download the contents of the following [Google Drive folder](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). We provide the same splits and labels we use in our article for the SIMD dataset (N = {5, 10, 30}). Add the data/ and weights/ directories into the project directory. The data path should follow the structure below for each dataset, e.g. simd, dior or your own:
+data/
+│
+├── simd/
+│   ├── train_coco_subset_N5.json
+│   ├── train_coco_subset_N10.json
+│   ├── train_coco_subset_N30.json
+│   ├── val_coco.json
+│   ├── train/
+│   │   ├── image1.jpg
+│   │   ├── image2.jpg
+│   │   └── ...
+│   └── val/
+│       ├── image1.jpg
+│       ├── image2.jpg
+│       └── ...
+│
+├── dior/
+│   ├── train_coco_subset_N5.json
+│   ├── train_coco_subset_N10.json
+│   ├── train_coco_subset_N30.json
+│   └── ...
+...
+
 
 ### Create prototypes
 To generate the class-reference and background prototypes using [DINOv2](https://github.com/facebookresearch/dinov2) features, run the following command:
