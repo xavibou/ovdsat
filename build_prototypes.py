@@ -28,6 +28,7 @@ from transformers import CLIPModel
 from torchvision import transforms
 from argparse import ArgumentParser
 from utils_dir.backbones_utils import load_backbone, extract_backbone_features, get_backbone_params
+from utils_dir.coco_to_seg import coco_to_seg
 
 def preprocess(image, mask=None, backbone_type='dinov2', target_size=(602, 602), patch_size=14):
     '''
@@ -162,7 +163,7 @@ def build_background_prototypes(args, model, device, patch_size):
         # Read image and annotations
         filename = image_info['file_name']
         annotations = [ann for ann in dataset['annotations'] if ann['image_id'] == image_info['id']]
-        image = Image.open(os.path.join(args.src_data_dir, filename))
+        image = Image.open(os.path.join(args.data_dir, filename))
         image, _ = preprocess(image, backbone_type=args.backbone_type, target_size=args.target_size, patch_size=patch_size)
 
         # Generate mask
@@ -195,7 +196,7 @@ def build_background_prototypes(args, model, device, patch_size):
 
     return category_dict
 
-def build_object_prototypes(args, model, device, patch_size):
+def build_object_prototypes(args, model, init_data, device, patch_size):
     '''
     Build object prototypes by extracting the features containing the objects and averaging them for each class, separately.
 
@@ -210,7 +211,7 @@ def build_object_prototypes(args, model, device, patch_size):
     class2images = {}
     classes = []
     masked_imgs = []
-    for f in glob(osp.join(args.data_dir, '**/*'), recursive=True):
+    for f in glob(osp.join(init_data, '**/*'), recursive=True):
         if osp.isfile(f) and 'mask' not in f:
             image_file = f
             class_name = osp.basename(osp.dirname(f))
@@ -273,6 +274,10 @@ def main(args):
         args (argparse.Namespace): Input arguments
     '''
 
+    # Convert COCO annotations to segmentation masks
+    init_data_path = os.path.join('data', 'init_data', args.save_dir.split('/')[-1])
+    coco_to_seg(args.annotations_file, args.data_dir, init_data_path)
+
     print('Building prototypes...')
     print(f'Loading model: {args.backbone_type}...')
 
@@ -284,7 +289,7 @@ def main(args):
     patch_size, _ = get_backbone_params(args.backbone_type)
 
     # Build object prototypes
-    obj_category_dict = build_object_prototypes(args, model, device, patch_size)
+    obj_category_dict = build_object_prototypes(args, model, init_data_path, device, patch_size)
     
     # Create save directory if it does not exist
     if not os.path.exists(args.save_dir):
@@ -305,10 +310,9 @@ def main(args):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default='/mnt/ddisk/boux/code/devit/datasets/simd_subset_10')
+    parser.add_argument('--data_dir', type=str, default='data/simd_subset_10')
     parser.add_argument('--save_dir', type=str, default='/mnt/ddisk/boux/code/ovdsat/run/classification_benchmark_exp')
     parser.add_argument('--annotations_file', type=str, default='/mnt/ddisk/boux/code/data/simd/train_coco_subset_N10.json')
-    parser.add_argument('--src_data_dir', type=str, default='/mnt/ddisk/boux/code/data/simd/training')
     parser.add_argument('--backbone_type', type=str, default='dinov2')
     parser.add_argument('--target_size', nargs=2, type=int, metavar=('width', 'height'), default=(602, 602))
     parser.add_argument('--window_size', type=int, default=224)

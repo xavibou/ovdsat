@@ -4,6 +4,8 @@ weights
 weights/*
 run/*
 *.pt
+data
+data/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

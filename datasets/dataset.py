@@ -9,7 +9,6 @@ from torch.utils.data import Dataset
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from torchvision import transforms as T
-rotate_oriented_boxes_batched
 
 class BaseDataset(Dataset):
     def __init__(self, root_dir, annotations_file, augmentations=None, target_size=(800, 800)):

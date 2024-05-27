@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATA_DIR=/mnt/ddisk/boux/code/data
+DATA_DIR=data
 backbone=dinov2
 annotations=box
 
@@ -17,7 +17,7 @@ do
             --backbone_type ${backbone} \
             --target_size 602 602 \
             --batch_size 8 \
-            --num_workers 0 \
+            --num_workers 8 \
             --scale_factor 1 
     done
 done
