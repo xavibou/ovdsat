@@ -15,7 +15,6 @@ from sklearn.metrics import classification_report
 from datasets import init_dataloaders
 
 def prepare_model(args):
-    # TODO: move to utils or to models __init__.py
     # Use GPU if available
     if torch.cuda.is_available():
         device = torch.device("cuda")

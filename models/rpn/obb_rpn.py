@@ -1,86 +1,3 @@
-# from ultralytics import YOLO
-# import torch
-# import torchvision.transforms.functional as TF
-# from shapely.geometry import Polygon
-# from PIL import Image, ImageDraw
-# import torch.nn.functional as F
-
-# class OBBRPN(torch.nn.Module):
-
-#     def __init__(self,
-#                 weight = 'yolov8n-obb.pt',
-#                 image_size=(602,602),
-#                 conf=0.001
-#                 ):
-#         super().__init__()
-#         self.weight = weight
-#         self.image_size = image_size
-#         self.conf = conf
-#         self.model = YOLO(self.weight)  # load an official model
-#         # Set the model to inference mode
-#         self.model.model.eval()
-
-#     def generate_masks_from_boxes(self, boxes_tensor, image_size):
-#         masks = []
-#         for box in boxes_tensor:
-#             # Convert box coordinates to numpy array
-#             box = box.numpy()
-
-#             # Create a blank image and draw the box on it
-#             img = Image.new('L', image_size, 0)
-#             draw = ImageDraw.Draw(img)
-#             draw.polygon(box, fill=255)
-
-#             # Convert the PIL image to a PyTorch tensor
-#             mask = TF.to_tensor(img)
-#             masks.append(mask[0])
-        
-#         # Stack if any, else return an empty tensor
-#         if len(masks) == 0:
-#             return torch.tensor([])
-#         masks_tensor = torch.stack(masks)
-#         return masks_tensor
-
-#     def forward(self, images):
-#         '''
-#         Args:
-#             images (torch.Tensor): Input tensor with shape (B, C, H, W)
-#             conf: confi
-#         '''
-
-#         confs = []
-#         masks = []
-#         boxes = []
-#         # Divide images by 255 to normalize them
-#         images = images / 255
-#         with torch.no_grad():
-#             results = self.model(images, conf=self.conf, verbose=False)
-#             for result in results:
-#                 conf = result.obb.conf.clone().detach().cpu()
-#                 obb = result.obb.xyxyxyxy.clone().detach().cpu()
-#                 box = result.obb.xyxy.clone().detach().cpu()
-
-#                 mask = self.generate_masks_from_boxes(obb, self.image_size) # returns a [H, W] mask
-
-#                 confs.append(conf)
-#                 masks.append(mask)
-#                 boxes.append(box)
-
-#             # Pad confs and boxes to the same size. Handle empty sequences
-#             max_len = max([len(x) for x in confs])
-#             confs = [F.pad(x, (0, max_len - len(x))) for x in confs]
-#             boxes = [F.pad(x, (0, max_len - len(x))) for x in boxes]
-
-#             # Pad masks to the same size with zeros with masks of size self.image_size
-#             masks = [torch.cat([x, torch.zeros((max_len - len(x), self.image_size[0], self.image_size[1]))]) for x in masks]
-
-#             confs = torch.stack(confs).to(images.device)
-#             masks = torch.stack(masks).to(images.device)
-#             boxes = torch.stack(boxes).to(images.device)
-
-#         return boxes, confs, masks
-
-
 from mmdet.apis import init_detector#, inference_detector
 import mmrotate
 import cv2
@@ -99,7 +16,6 @@ from mmdet.datasets.pipelines import Compose
 def convert_to_xyxyxyxy(bboxes):
         N = bboxes.shape[0]
         xyxyxyxy = torch.zeros(N, 4, 2)
-        #breakpoint()
         for i, bbox in enumerate(bboxes):
             xc, yc, w, h, ag = bbox.cpu().numpy()
             wx, wy = w / 2 * np.cos(ag), w / 2 * np.sin(ag)
@@ -139,13 +55,12 @@ def obb_to_bbox(obb_tensor):
 class OBBRPN(torch.nn.Module):
 
     def __init__(self,
-                config_file='/mnt/ddisk/boux/code/mmrotate/oriented_rcnn_r50_fpn_1x_dota_le90.py',
-                checkpoint_file='/mnt/ddisk/boux/code/mmrotate/oriented_rcnn_r50_fpn_1x_dota_le90-6d2b2ce0.pth'
+                config_file='configs/oriented_rcnn_r50_fpn_1x_dota_le90.py',
+                checkpoint_file='weights/oriented_rcnn_r50_fpn_1x_dota_le90-6d2b2ce0.pth'
                 ):
         super().__init__()
         self.config_file = config_file
         self.checkpoint_file = checkpoint_file
-        #self.box_norm_factor = 10   # Used to normalize the positive bounding box scores to be in the same range as the class scores
         
         self.model = init_detector(config_file, checkpoint_file)
         self.test_pipeline = Compose(self.model.cfg.data.test.pipeline)

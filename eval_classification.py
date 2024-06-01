@@ -15,7 +15,6 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 
 
 def prepare_model(args):
-    # TODO: move to utils or to models __init__.py
     # Use GPU if available
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -74,7 +73,7 @@ def eval_classification(args, model, val_dataloader, device):
         return conf_matrix, total_predicted_labels, true_labels
             
 def main(args):
-    print('Setting up training...')
+    print('Setting up evaluation...')
 
     # Initialize dataloader
     _, val_dataloader = init_dataloaders(args)

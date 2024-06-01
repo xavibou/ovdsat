@@ -1,4 +1,5 @@
-# YOLOv5 🚀 by Ultralytics, AGPL-3.0 license
+# This file is extracted from YOLOv5: https://github.com/ultralytics/yolov5.
+# from YOLOv5 🚀 by Ultralytics, AGPL-3.0 license
 """
 Model validation metrics
 """

@@ -11,12 +11,11 @@ python eval_detection.py \
     --val_root_dir ${DATA_DIR}/${dataset}/val \
     --save_dir run/eval/detection/${dataset}/backbone_${backbone}_${finetune_type}/N${N} \
     --val_annotations_file ${DATA_DIR}/${dataset}/val_coco.json \
-    --prototypes_path run/train/${finetune_type}/${dataset}_N${N}/prototypes.pth \
-    --bg_prototypes_path ${INIT_PROTOTYPES_PATH}/boxes/${dataset}_N${N}/bg_prototypes_${backbone}.pt \
+    --prototypes_path run/train/boxes/${dataset}_N${N}/prototypes.pth \
+    --bg_prototypes_path run/init_prototypes/boxes/${dataset}_N${N}/bg_prototypes_${backbone}.pt \
     --backbone_type ${backbone} \
     --classification box \
     --target_size 602 602 \
-    --batch_size 1 \
+    --batch_size 16 \
     --num_workers 8 \
-    --conf_thres 0.3 \
     --scale_factor 1 

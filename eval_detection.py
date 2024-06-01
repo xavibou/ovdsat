@@ -1,96 +1,14 @@
-import cv2
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
-from skimage import color
-
-
 import os
 import torch
 import numpy as np
 from tqdm import tqdm
-from tabulate import tabulate
 from argparse import ArgumentParser
-from sklearn.metrics import classification_report
-from models.detector import OVDBoxClassifier, OVDMaskClassifier
-from utils_dir.backbones_utils import prepare_image_for_backbone
-from utils_dir.processing_utils import map_labels_to_prototypes
-from utils_dir.nms import custom_xywh2xyxy
 from datasets import init_dataloaders
 from models.detector import OVDDetector
-
-
-from utils_dir.metrics import ConfusionMatrix, ap_per_class, box_iou
 from datasets import get_base_new_classes
-
-def plot_image_with_boxes(image_path, detections, label_names, filepath, target_size):
-    '''
-    Plot image with bounding boxes
-    
-    Args:
-        image_path (str): Path to the image
-        detections (array[N, 6]): x1, y1, x2, y2, conf, class
-        label_names (list): List of label names
-        filepath (str): Path to save the image
-        target_size (tuple): Target size of the image
-    '''
-    # Load the image using OpenCV
-    image = cv2.imread(image_path)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    original_image_size = (1024, 1024)
-    image = cv2.resize(image, original_image_size)
-    # Create figure and axes
-    fig, ax = plt.subplots(1)
-    ax.imshow(image)
-
-    # Define a list of colors for each class
-    colors = ['lightgreen', 'lightgreen', 'darkmagenta', 'cyan', 'magenta', 'cornflowerblue', 'white', 'white', 'cornflowerblue', 'gold', 
-              'brown', 'cyan', 'gray', 'olive', 'teal', 'darkblue', 'darkgreen', 'darkblue', 'darkcyan', 'darkmagenta']
-
-    # Plot bounding boxes with different colors for each class
-    for detection in detections:
-        xmin, ymin, xmax, ymax, conf, class_id = detection
-
-        # Scale the bounding box coordinates to the original image size
-        xmin = int(xmin * original_image_size[0] / target_size[0])
-        ymin = int(ymin * original_image_size[1] / target_size[1])
-        xmax = int(xmax * original_image_size[0] / target_size[0])
-        ymax = int(ymax * original_image_size[1] / target_size[1])
-
-        # Get label name based on class_id
-        label_name = label_names[int(class_id)]
-
-        # Calculate box width and height
-        width = xmax - xmin
-        height = ymax - ymin
-
-        # Create a Rectangle patch with a color corresponding to the class
-        rect = patches.Rectangle((xmin, ymin), width, height, linewidth=1, edgecolor=colors[int(class_id)], facecolor='none')
-        ax.add_patch(rect)
-
-        # Add label name above the bounding box with the same color and background
-        bbox_props = dict(boxstyle="square", fc=colors[int(class_id)], ec="black", lw=0)
-
-        # Adjust text position to start at the same x-coordinate as the bounding box
-        text_x = xmin+9.5
-
-        if colors[int(class_id)] in ['blue', 'darkmagenta']:
-            text_color = 'white'
-        else:
-            text_color = 'black'
-        
-        if label_name == 'figther-aircraft':
-            label_name = 'fighter-aircraft'
-        
-        ax.text(text_x, ymin - 10, label_name, color=text_color, fontsize=10, ha='left', va='bottom', bbox=bbox_props)
-
-    # Save the plot to the specified directory
-    plt.axis('off')
-    save_path = f"{filepath}"
-    plt.savefig(save_path[:-4] + '.pdf', format='pdf', transparent=True)
-    plt.savefig(save_path[:-4] + '.png', transparent=True)
-    plt.close()
-
+from utils_dir.nms import custom_xywh2xyxy
+from utils_dir.metrics import ap_per_class, box_iou
+from utils_dir.processing_utils import map_labels_to_prototypes
 
 
 def prepare_model(args):
@@ -143,19 +61,13 @@ def eval_detection(args, model, val_dataloader, device):
     iouv = torch.linspace(0.5, 0.95, 10, device=device)  # iou vector for mAP@0.5:0.95
     nc = val_dataloader.dataset.get_category_number()
     names = model.classifier.get_categories()
-    count = 0
 
     stats = []
     with torch.no_grad():
         for i, batch in tqdm(enumerate(val_dataloader), total=len(val_dataloader), leave=False):
 
-            #if i not in [141, 34, 514, 61]:
-            if i not in [514]:
-                count += 1
-                continue
-
             if args.classification != 'mask':
-                images, boxes, labels, _, metadata = batch
+                images, boxes, labels, metadata = batch
                 boxes = boxes.to(device)
             else:
                 images, _, labels, masks, _ = batch
@@ -166,11 +78,6 @@ def eval_detection(args, model, val_dataloader, device):
             labels = labels.to(device)
 
             preds = model(images, iou_thr=args.iou_thr, conf_thres=args.conf_thres, aggregation=args.aggregation)
-            #preds = model(images, iou_thr=args.iou_thr, conf_thres=args.conf_thres, aggregation=args.aggregation, labels=custom_xywh2xyxy(boxes))
-
-            filepath = os.path.join('/mnt/ddisk/boux/code/ovdsat/run/plots/detections_chosen', '{}.png'.format(count))
-            plot_image_with_boxes(metadata['impath'][0], preds[0].cpu(), names, filepath, args.target_size)
-            count += 1
 
             for si, pred in enumerate(preds):
                 keep = labels[si] > -1
@@ -213,7 +120,7 @@ def eval_detection(args, model, val_dataloader, device):
         filename = 'results_{}.txt'.format(args.backbone_type)
         save_file_path = os.path.join(args.save_dir, filename)
         base_classes, new_classes = get_base_new_classes(args.dataset)
-        
+
         with open(save_file_path, 'w') as file:
             file.write('Class Images Instances P R mAP50 mAP50-95\n')
             file.write('%22s%11i%11i%11.4g%11.4g%11.4g%11.4g\n' % ('all', seen, nt.sum(), mp, mr, map50, map))
@@ -246,7 +153,7 @@ def eval_detection(args, model, val_dataloader, device):
                 file.write('%22s%11i%11i%11.4g%11.4g%11.4g%11.4g\n' % ('total new', seen, nt.sum(), mp_new, mr_new, map50_new, map_new))
 
 def main(args):
-    print('Setting up training...')
+    print('Setting up evaluation...')
 
     # Initialize dataloader
     _, val_dataloader = init_dataloaders(args)
@@ -268,6 +175,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str)
     parser.add_argument('--val_root_dir', type=str)
     parser.add_argument('--val_annotations_file', type=str)
+    parser.add_argument('--annotations', type=str, default='box')
     parser.add_argument('--prototypes_path', type=str)
     parser.add_argument('--bg_prototypes_path', type=str, default=None)
     parser.add_argument('--aggregation', type=str, default='mean')

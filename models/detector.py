@@ -19,10 +19,8 @@ class OVDDetector(torch.nn.Module):
                 scale_factor=2,
                 min_box_size=5,
                 ignore_index=-1,
-                rpn_config='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/config.yaml',
-                rpn_checkpoint='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/model_final.pth',
-                #rpn_config='/mnt/ddisk/boux/code/mmrotate/oriented_rcnn_r50_fpn_1x_dota_le90.py',
-                #rpn_checkpoint='/mnt/ddisk/boux/code/mmrotate/oriented_rcnn_r50_fpn_1x_dota_le90-6d2b2ce0.pth',
+                rpn_config='configs/FasterRCNN_FPN_DOTA_config.yaml',
+                rpn_checkpoint='weights/FasterRCNN_FPN_DOTA_final_model.pth',
                 classification='box'    # Possible values: 'box', 'obb', 'mask'
                 ):
         super().__init__()
@@ -69,9 +67,6 @@ class OVDDetector(torch.nn.Module):
             # Generate box proposals
             if self.classification == 'box':
                 proposals, proposals_scores = self.rpn(images)
-                #proposals = labels
-                #proposals_scores = torch.ones((proposals.shape[0],proposals.shape[1]), device=images.device)
-
             elif self.classification == 'obb':
                 boxes, proposals_scores, proposals = self.rpn(images)
             elif self.classification == 'mask':

@@ -1,20 +1,18 @@
 '''
-All the logic and functions related extracting robust features with pre-trained backbones is found here. This way, training, eval and the model itself can all use the same code.
-
+All the logic and functions related extracting robust features with pre-trained backbones is found here. 
+This way, training, eval and the model itself can all use the same code.
 '''
 
 import torch
-#import open_clip
 import torch.nn.functional as F
 from transformers import CLIPModel
 from huggingface_hub import hf_hub_download
 
 # Paths to the pre-trained models
-PATH_CKPT_GEORSCLIP_32 = '/mnt/ddisk/boux/code/ovdsat/weights/RS5M_ViT-B-32.pt'
-PATH_CKPT_GEORSCLIP_14 = '/mnt/ddisk/boux/code/ovdsat/weights/RS5M_ViT-H-14.pt'
-PATH_CKPT_REMOTECLIP_32 = '/mnt/ddisk/boux/code/ovdsat/weights/RemoteCLIP-ViT-B-32.pt'
-PATH_CKPT_REMOTECLIP_14 = '/mnt/ddisk/boux/code/ovdsat/weights/RemoteCLIP-ViT-L-14.pt'
-
+PATH_CKPT_GEORSCLIP_32 = 'weights/RS5M_ViT-B-32.pt'
+PATH_CKPT_GEORSCLIP_14 = 'weights/RS5M_ViT-H-14.pt'
+PATH_CKPT_REMOTECLIP_32 = 'weights/RemoteCLIP-ViT-B-32.pt'
+PATH_CKPT_REMOTECLIP_14 = 'weights/RemoteCLIP-ViT-L-14.pt'
 
 def load_backbone(backbone_type):
     '''
@@ -55,7 +53,7 @@ def load_backbone(backbone_type):
         model, _, _ = open_clip.create_model_and_transforms('ViT-B-32')
         # TODO: fix download and load ckpt into the model
         checkpoint_path = hf_hub_download("chendelong/RemoteCLIP", f"RemoteCLIP-ViT-B-32.pt", cache_dir='weights')
-        ckpt = torch.load('/mnt/ddisk/boux/code/ovdsat/weights/models--chendelong--RemoteCLIP/snapshots/bf1d8a3ccf2ddbf7c875705e46373bfe542bce38/RemoteCLIP-ViT-B-32.pt', map_location="cpu")
+        ckpt = torch.load('weights/models--chendelong--RemoteCLIP/snapshots/bf1d8a3ccf2ddbf7c875705e46373bfe542bce38/RemoteCLIP-ViT-B-32.pt', map_location="cpu")
         #ckpt = torch.load(PATH_CKPT_REMOTECLIP_32, map_location="cpu")
         model.load_state_dict(ckpt)
         model = model.visual
@@ -64,7 +62,7 @@ def load_backbone(backbone_type):
         model, _, _ = open_clip.create_model_and_transforms('ViT-L-14')
         # TODO: fix download and load ckpt into the model
         checkpoint_path = hf_hub_download("chendelong/RemoteCLIP", f"RemoteCLIP-ViT-L-14.pt", cache_dir='weights')
-        ckpt = torch.load('/mnt/ddisk/boux/code/ovdsat/weights/models--chendelong--RemoteCLIP/snapshots/bf1d8a3ccf2ddbf7c875705e46373bfe542bce38/RemoteCLIP-ViT-L-14.pt', map_location="cpu")
+        ckpt = torch.load('weights/models--chendelong--RemoteCLIP/snapshots/bf1d8a3ccf2ddbf7c875705e46373bfe542bce38/RemoteCLIP-ViT-L-14.pt', map_location="cpu")
         #ckpt = torch.load(PATH_CKPT_REMOTECLIP_14, map_location="cpu")
         model.load_state_dict(ckpt)
         model = model.visual

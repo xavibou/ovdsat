@@ -1,6 +1,5 @@
 import torch
 from detectron2.structures import ImageList
-
 from detectron2.config import get_cfg
 from detectron2.engine.defaults import DefaultPredictor
 from models.crop_rcnn import CropRCNN
@@ -64,8 +63,8 @@ def get_box_RPN(config_file, checkpoint_file):
 class BoxRPN(torch.nn.Module):
 
     def __init__(self,
-                config_file='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/config.yaml',
-                checkpoint_file='/mnt/ddisk/boux/code/DroneDetectron2/outputs_FPN_DOTA/model_final.pth'
+                config_file='configs/FasterRCNN_FPN_DOTA_config.yaml',
+                checkpoint_file='weights/FasterRCNN_FPN_DOTA_final_model.pth'
                 ):
         super().__init__()
         self.config_file = config_file
@@ -96,4 +95,3 @@ class BoxRPN(torch.nn.Module):
         box_scores = torch.stack([p.objectness_logits / self.box_norm_factor for p in proposals])
 
         return boxes, box_scores
-
