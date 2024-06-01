@@ -79,7 +79,7 @@ Notice that the train_coco_finetune_val.json corresponds to a small subset of tr
 
 #### Weights
 
-We pre-trained a FasterRCNN model on DOTA for the RPN using the code from [DroneDetectron2](https://github.com/akhilpm/DroneDetectron2). If you plan to use any of the Remote Sensing CLIP models tested in the paper, download the pre-trained weights ([RemoteCLIP](https://huggingface.co/chendelong/RemoteCLIP/tree/main) and [GeoRSClip](https://huggingface.co/Zilun/GeoRSCLIP)) and add them to the weights/ directory. 
+We pre-trained a FasterRCNN model on DOTA for the RPN using the code from [DroneDetectron2](https://github.com/akhilpm/DroneDetectron2). The pre-trained checkpoints can be found in the [Google Drive directory](https://drive.google.com/drive/folders/1g3JhJivPlmpCfggAAJoiZPJDOIBeJR5J?usp=sharing). If you plan to use any of the Remote Sensing CLIP models tested in the paper, download the pre-trained weights ([RemoteCLIP](https://huggingface.co/chendelong/RemoteCLIP/tree/main) and [GeoRSClip](https://huggingface.co/Zilun/GeoRSCLIP)) and add them to the weights/ directory.
 
 ### Create prototypes
 To generate the class-reference and background prototypes using [DINOv2](https://github.com/facebookresearch/dinov2) features, run the following command:
