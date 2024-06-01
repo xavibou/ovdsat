@@ -57,6 +57,7 @@ data/
 │   ├── train_coco_subset_N5.json
 │   ├── train_coco_subset_N10.json
 │   ├── train_coco_subset_N30.json
+│   ├── train_coco_finetune_val.json
 │   ├── val_coco.json
 │   ├── train/
 │   │   ├── image1.jpg
@@ -74,6 +75,7 @@ data/
 │   └── ...
 ...
 ```
+Notice that the train_coco_finetune_val.json corresponds to a small subset of training data from the used dataset that is used as validation set during training, so that no real validation data is used as such.
 
 #### Weights
 
