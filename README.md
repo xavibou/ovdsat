@@ -1,6 +1,6 @@
 # Exploring Robust Features for Few-Shot Object Detection in Satellite Imagery
 
-[Xavier Bou](https://www.linkedin.com/in/xavier-bou-hernandez-39b517134/), [Gabriele Facciolo](http://gfacciol.github.io/), [Rafael Grompone](https://scholar.google.fr/citations?user=GLovf4UAAAAJ&hl=en), [Jean-Michel Morel](https://sites.google.com/site/jeanmichelmorelcmlaenscachan/), [Thibaud Ehret](https://tehret.github.io)
+[Xavier Bou](https://xavibou.github.io/), [Gabriele Facciolo](http://gfacciol.github.io/), [Rafael Grompone](https://scholar.google.fr/citations?user=GLovf4UAAAAJ&hl=en), [Jean-Michel Morel](https://sites.google.com/site/jeanmichelmorelcmlaenscachan/), [Thibaud Ehret](https://tehret.github.io)
 
 Centre Borelli, ENS Paris-Saclay
 
